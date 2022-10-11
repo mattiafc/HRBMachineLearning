@@ -7,35 +7,27 @@ import matplotlib.pyplot as plt
 
 class logistic_regression:
     
-    train_size = 0.60
-    valid_size = 0.0
-    test_size = 0.40
     
-    
-    def __init__(self, X_input, y_input, dataset = 'Standard'):
+    def __init__(self, X_train_nn, X_test_nn, y_train_nn, y_test_nn):
         
         #if dataset == ' Standard'
         
-        self.nFeatures, self.nSamples = X_input.shape
+        self.nFeatures, self.nSamples = X_train_nn.shape
         
-        self.X_mean = np.mean(X_input, axis = 1, keepdims = True)
-        self.X_std  = np.std(X_input, axis = 1, keepdims = True, ddof = 1)+1e-10
+        self.X_mean = np.mean(X_train_nn, axis = 1, keepdims = True)
+        self.X_std  = np.std(X_train_nn, axis = 1, keepdims = True, ddof = 1)+1e-10
         
-        X = (X_input - self.X_mean)/self.X_std
+        self.X_train = (X_train_nn - self.X_mean)/self.X_std
+        self.X_test  = (X_test_nn - self.X_mean)/self.X_std
         
-        y_input[y_input>-1] = 1
-        y_input[y_input<-1] = 0
+        y_train_nn[y_train_nn>-1] = 1
+        y_train_nn[y_train_nn<-1] = 0
         
-        y = y_input
+        y_test_nn[y_test_nn>-1] = 1
+        y_test_nn[y_test_nn<-1] = 0
         
-        self.X_train, self.X_valid, self.X_test, self.y_train, self.y_valid, self.y_test = self.train_valid_test(X.T, y.T)
-        
-        print('=====================================================')
-        print('Total number of samples is: ' + str(X.shape[1]))
-        print('Training   set is ' + str(self.train_size) + ' which corresponds to ' +str(self.X_train.shape[1]) + ' samples')
-        print('Validation set is ' + str(self.valid_size) + ' which corresponds to ' +str(self.X_valid.shape[1]) + ' samples')
-        print('Test       set is ' + str(self.test_size)  + ' which corresponds to ' +str(self.X_test.shape[1])  + ' samples')
-        print('=====================================================\n')
+        self.y_train = y_train_nn
+        self.y_test = y_test_nn
         
         params = self.initialize_parameters()
         
@@ -58,25 +50,24 @@ class logistic_regression:
         print('Model parameters: ' + str(params["W1"]) + str(params["b1"]))
         print('=====================================================\n')
         
+
+    # def train_valid_test(self, X, y):
         
+    #     if abs(self.train_size + self.test_size + self.valid_size - 1.0) > 1e-6:
+    #         raise Exception("Summation of dataset splits should be 1")
+        
+    #     X_test, X_train, y_test, y_train = train_test_split(X, y, test_size=self.train_size, random_state=42)
+        
+    #     #X_valid, X_test, y_valid, y_test = train_test_split(X_test, y_test, test_size=self.test_size/(self.valid_size + self.test_size), random_state=42)
+        
+    #     X_valid = np.zeros((2,2))
+    #     y_valid = np.zeros((2,2))
+        
+    #     return X_train.T, X_valid.T, X_test.T, y_train.T, y_valid.T, y_test.T    
 
     
     def sigmoid(self, x):
-        return 1.0/(1.0+np.exp(-x)) 
-
-    def train_valid_test(self, X, y):
-        
-        if abs(self.train_size + self.test_size + self.valid_size - 1.0) > 1e-6:
-            raise Exception("Summation of dataset splits should be 1")
-        
-        X_test, X_train, y_test, y_train = train_test_split(X, y, test_size=self.train_size, random_state=42)
-        
-        #X_valid, X_test, y_valid, y_test = train_test_split(X_test, y_test, test_size=self.test_size/(self.valid_size + self.test_size), random_state=42)
-        
-        X_valid = np.zeros((2,2))
-        y_valid = np.zeros((2,2))
-        
-        return X_train.T, X_valid.T, X_test.T, y_train.T, y_valid.T, y_test.T
+        return 1.0/(1.0+np.exp(-x))
     
     def initialize_parameters(self):
             
@@ -139,33 +130,71 @@ class logistic_regression:
         
         return(pred)
         
+
+class preprocess_features:
     
+    train_size = 0.60
+    test_size = 0.40
+
+    def __init__(self, X, y, dataset = 'Standard'):
+
+        self.X = X
+        self.y = y
+        self.dataset = dataset
+
+    def split_dataset(self):
+        if self.dataset == 'Standard':
+            X_train, X_test, y_train, y_test = self.preprocess_Standard(self.X.T, self.y.T)
+
         
-def train_test_MF(angles_train, angles_test):
-    
-    data = []
+        
+        print('=====================================================')
+        print('Total number of samples is: ' + str(X.shape[1]))
+        print('Training   set is ' + str(self.train_size) + ' which corresponds to ' +str(X_train.shape[1]) + ' samples')
+        print('Test       set is ' + str(self.test_size)  + ' which corresponds to ' +str(X_test.shape[1])  + ' samples')
+        print('=====================================================\n')
 
-    variables = ['CfMean','TKE','U','gradP','rmsCp','peakminCp','peakMaxCp','theta']
-    labels = 'meanCp'
-    
-    for ang in angles_train:
-        data.append(pd.read_csv(str('Features/Coarsest' + str(ang))))
-    
-    dataFrame = pd.concat(data, axis=0)   
-    
-    #test  = []
-    
-    #for ang in test_set:
-        #test_set.append(pd.read_csv(str('Features/Coarsest' + str(ang))))
-    
+        return X_train, X_test, y_train, y_test
 
-    X = dataFrame[variables].values.T
-    y = np.asmatrix(dataFrame[labels].values)
-    
-    return X,y
+    def preprocess_Multifidelity(self):
+        pass
 
-X, y = train_test_MF([0,10,20,30,40,50,60,70,80,90], [0])
+    def preprocess_Standard(self, X, y):
+        
+        if abs(self.train_size + self.test_size - 1.0) > 1e-6:
+            raise Exception("Summation of dataset splits should be 1")
+        
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=self.test_size, random_state=42)
+        
+        return X_train.T, X_test.T, y_train.T, y_test.T
 
-LR = logistic_regression(X, y)
+
+
+angles_train = [0,10,20,30,40,50,60,70,80,90]
+
+variables = ['CfMean','TKE','U','gradP','rmsCp','peakminCp','peakMaxCp','theta','LV0']
+labels = 'meanCp'
+
+data = []
+for ang in angles_train:
+    data.append(pd.read_csv(str('Features/Coarsest' + str(ang))))
+
+dataFrame = pd.concat(data, axis=0)   
+
+# test  = []
+
+# for ang in test_set:
+#     test_set.append(pd.read_csv(str('Features/Coarsest' + str(ang))))
+
+
+X = dataFrame[variables].values.T
+y = np.asmatrix(dataFrame[labels].values)
+
+# X, y = train_test_MF([0,10,20,30,40,50,60,70,80,90], [0])
+datasplit = preprocess_features(X, y)
+X_train, X_test, y_train, y_test = datasplit.split_dataset()
+
+
+LR = logistic_regression(X_train, X_test, y_train, y_test)
 
 
