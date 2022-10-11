@@ -167,5 +167,3 @@ def train_test_MF(angles_train, angles_test):
 X, y = train_test_MF([0,10,20,30,40,50,60,70,80,90], [0])
 
 LR = logistic_regression(X, y)
-
-print("Branch")
