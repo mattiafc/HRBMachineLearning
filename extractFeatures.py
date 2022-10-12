@@ -68,6 +68,9 @@ def featureNumber(qty):
     elif qty == 'theta':
         idx = 12
         
+    elif qty == 'LV0':
+        idx = 13
+        
     return idx
 
 def rotateNormals(normal, theta):
@@ -98,7 +101,7 @@ normals = {'F': np.array([-1,0,0]),
 
 resolutions = {'Coarsest':'150001','Coarse':'240001'}
 
-quantities = ['CfMean','TKE','U','gradP','UDotN','meanCp','rmsCp','peakMaxCp','peakminCp','theta']
+quantities = ['CfMean','TKE','U','gradP','UDotN','meanCp','rmsCp','peakMaxCp','peakminCp','theta','LV0']
 angles = list(range(0,100,10))
         
 nColors = 25
@@ -171,10 +174,19 @@ for ang in angles:
                 elif qty == 'UDotN':
                     for cont in range(nElem):
                         UDotN[cont] = np.matrix([[1, 0, 0]]).dot(faceNormal.T)
-            
+
+                if lvl == 'Coarsest':
+                    LV0 = 0.34
+
+                elif lvl == 'Coarse':
+                    LV0 = 0.23
+
+                elif lvl == 'Fine':
+                    LV0 = 0.15
+
             probes[dictKey] = {'TKE':TKE[srtrData],       'U':U[srtrData],         'gradP':gradP[srtrData], 
                                'CfMean': CfMean[srtrData], 'UDotN':UDotN[srtrData], 'Cf':Cf[srtrStress], 
-                               'coords': coords[srtrData,:], 'theta': ang,
+                               'coords': coords[srtrData,:], 'theta': ang, 'LV0':LV0,
                                'meanCp': allCp[dictKey]['meanCp'], 'peakMaxCp': allCp[dictKey]['peakMaxCp'], 
                                'rmsCp':  allCp[dictKey]['rmsCp'],  'peakminCp': allCp[dictKey]['peakminCp']}
         
