@@ -44,7 +44,7 @@ class logistic_regression:
         print('Layer dimensions: ' + str(self.layers_dims))
         print('=====================================================\n')
         
-        parameters, costs = self.L_layer_model(self.X_train, self.y_train)
+        parameters, cost = self.L_layer_model(self.X_train, self.y_train)
         
         pred_train = predict(self.X_train, self.y_train, parameters)
         accuracy_train = np.sum(pred_train == self.y_train)/self.y_train.shape[1]
@@ -56,6 +56,11 @@ class logistic_regression:
         print('Train set accuracy is: ' + str(accuracy_train))
         print('Test  set accuracy is: ' + str(accuracy_test))
         print('=====================================================\n')
+
+        plt.plot(np.arange(1,len(cost)+1)*10,cost)
+        plt.xlabel('Iteration')
+        plt.ylabel('Cost')
+        plt.show(block=True)
         
 
     # def train_valid_test(self, X, y):
@@ -72,7 +77,7 @@ class logistic_regression:
         
     #     return X_train.T, X_valid.T, X_test.T, y_train.T, y_valid.T, y_test.T    
 
-    def L_layer_model(self, X, y, learning_rate = 0.1, num_iterations = 3000, print_cost=True):
+    def L_layer_model(self, X, y, learning_rate = 0.5, num_iterations = 1000, print_cost=True):
         """
         Implements a L-layer neural network: [LINEAR->RELU]*(L-1)->LINEAR->SIGMOID.
         
@@ -112,7 +117,7 @@ class logistic_regression:
             # Print the cost every 100 iterations
             if print_cost and i % 100 == 0 or i == num_iterations - 1:
                 print("Cost after iteration {}: {}".format(i, np.squeeze(cost)))
-            if i % 100 == 0 or i == num_iterations:
+            if i % 10 == 0 or i == num_iterations:
                 costs.append(cost)
         
         return parameters, costs
@@ -120,8 +125,8 @@ class logistic_regression:
 
 class preprocess_features:
     
-    train_size = 0.60
-    test_size = 0.40
+    train_size = 0.80
+    test_size = 0.20
 
     def __init__(self, angles, resolutions, features, label, dataset = 'Standard'):
 
@@ -145,7 +150,7 @@ class preprocess_features:
             
             X_train, X_test, y_train, y_test = self.ordinary_train_test(X.T, y.T)
         
-        if self.dataset == 'MultiFidelity':
+        elif self.dataset == 'MultiFidelity':
             
             LFTrainDF = self.read_file([self.resolutions['LF']], self.angles['LF'])
             HFTrainDF = self.read_file([self.resolutions['HF']], self.angles['HF'])
@@ -165,6 +170,9 @@ class preprocess_features:
             y_test = (testDF[labels].values).reshape(1,-1)
             y_test[y_test>-1.5] = 1
             y_test[y_test<-1.5] = 0
+
+        else:
+            raise Exception("The Dataset format you selected does not SUGHELLO")
             
         
         print('=====================================================')
