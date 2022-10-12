@@ -206,17 +206,19 @@ class preprocess_features:
         return pd.concat(data, axis=0) 
 
 
-angles     = [0,10,20,30,40,50,60,70,80,90]
-resolution = ['Coarsest','Coarse']
-variables  = ['CfMean','TKE','U','gradP','rmsCp','peakminCp','peakMaxCp','theta','LV0']
-labels     = 'meanCp'
+# angles     = [0,10,20,30,40,50,60,70,80,90]
+# resolution = ['Coarsest','Coarse']
+# variables  = ['CfMean','TKE','U','gradP','rmsCp','peakminCp','peakMaxCp','theta','LV0']
+# labels     = 'meanCp'
+# dataset    = 'Standard'
 
 angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,30,60,90]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
 variables  = ['CfMean','TKE','U','gradP','rmsCp','peakminCp','peakMaxCp','theta','LV0']
 labels     = 'meanCp'
+dataset    = 'MultiFidelity'
 
-datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
+datasplit = preprocess_features(angles, resolution, variables, labels, dataset)
 
 X_train, X_test, y_train, y_test = datasplit.split_dataset()
 
