@@ -212,4 +212,5 @@ datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFid
 
 X_train, X_test, y_train, y_test = datasplit.split_dataset()
 
+
 LR = logistic_regression(X_train, X_test, y_train, y_test)
