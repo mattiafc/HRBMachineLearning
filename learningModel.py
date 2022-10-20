@@ -69,8 +69,8 @@ class neural_networks:
 
 class preprocess_features:
     
-    train_size = 0.60
-    test_size = 0.40
+    train_size = 0.80
+    test_size = 0.20
 
     def __init__(self, angles, resolutions, features, label, dataset = 'Standard'):
 
@@ -91,7 +91,7 @@ class preprocess_features:
             
             X_train, X_test, y_train, y_test = self.ordinary_train_test(X.T, y.T)
         
-        if self.dataset == 'MultiFidelity':
+        elif self.dataset == 'MultiFidelity':
             
             LFTrainDF = self.read_file([self.resolutions['LF']], self.angles['LF'])
             HFTrainDF = self.read_file([self.resolutions['HF']], self.angles['HF'])
@@ -152,7 +152,7 @@ resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
 variables  = ['CfMean','TKE','U','gradP','meanCp','peakminCp','peakMaxCp','theta','LV0','Area']
 labels     = 'rmsCp'
 
-datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
+datasplit = preprocess_features(angles, resolution, variables, labels, dataset)
 
 datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
 
