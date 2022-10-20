@@ -152,8 +152,6 @@ resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
 variables  = ['CfMean','TKE','U','gradP','meanCp','peakminCp','peakMaxCp','theta','LV0','Area']
 labels     = 'rmsCp'
 
-datasplit = preprocess_features(angles, resolution, variables, labels, dataset)
-
 datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
 
 X_train, X_test, y_train, y_test = datasplit.split_dataset()
