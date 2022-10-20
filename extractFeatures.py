@@ -71,6 +71,9 @@ def featureNumber(qty):
     elif qty == 'LV0':
         idx = 13
         
+    elif qty == 'Area':
+        idx = 14
+        
     return idx
 
 def rotateNormals(normal, theta):
@@ -101,7 +104,7 @@ normals = {'F': np.array([-1,0,0]),
 
 resolutions = {'Coarsest':'150001','Coarse':'240001'}
 
-quantities = ['CfMean','TKE','U','gradP','UDotN','meanCp','rmsCp','peakMaxCp','peakminCp','theta','LV0']
+quantities = ['CfMean','TKE','U','gradP','UDotN','meanCp','rmsCp','peakMaxCp','peakminCp','theta','LV0','Area']
 angles = list(range(0,100,10))
         
 nColors = 25
@@ -186,7 +189,7 @@ for ang in angles:
 
             probes[dictKey] = {'TKE':TKE[srtrData],       'U':U[srtrData],         'gradP':gradP[srtrData], 
                                'CfMean': CfMean[srtrData], 'UDotN':UDotN[srtrData], 'Cf':Cf[srtrStress], 
-                               'coords': coords[srtrData,:], 'theta': ang, 'LV0':LV0,
+                               'coords': coords[srtrData,:], 'theta': ang, 'LV0':LV0, 'Area':allCp[dictKey]['Area'],
                                'meanCp': allCp[dictKey]['meanCp'], 'peakMaxCp': allCp[dictKey]['peakMaxCp'], 
                                'rmsCp':  allCp[dictKey]['rmsCp'],  'peakminCp': allCp[dictKey]['peakminCp']}
         
