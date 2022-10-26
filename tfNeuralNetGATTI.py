@@ -72,7 +72,7 @@ def compute_cost(labels, y_hat, layers, area):
     return RMSE
 
 def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
-          learning_rate = 0.0005, num_epochs = 200, minibatch_size = 0, test_check = False):
+          learning_rate, num_epochs, minibatch_size, test_check = False):
     
     # Initalize costs, variables, and optimizer
     
