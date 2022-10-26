@@ -25,7 +25,8 @@ def initialize_parameters(layers):
     for l in range(1, L):
     
         parameters['W' + str(l)] = tf.Variable(np.random.randn(layers[l], layers[l-1])/np.sqrt(layers[l-1]))
-        parameters['b' + str(l)] = tf.Variable(np.random.rand(layers[l], 1))
+        parameters['b' + str(l)] = tf.Variable(np.random.randn(layers[l], 1))
+        #parameters['b' + str(l)] = tf.Variable(np.zeros((layers[l], 1)))
         
         #print(parameters['W' + str(l)].shape)
         assert(parameters['W' + str(l)].shape == (layers[l], layers[l - 1]))
