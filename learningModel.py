@@ -20,7 +20,11 @@ class neural_networks:
     train_size = 0.80
     dev_size = 0.20
     
-    def __init__(self, X_train_dev_nn, X_test_nn, y_train_dev, y_test, layers, variables, labels, learn_delta = False):
+    ####################################
+    ###   Normalize and split data   ###
+    ####################################
+    
+    def __init__(self, X_train_dev_nn, X_test_nn, y_train_dev, y_test, variables, labels, learn_delta = False):
         
         #if dataset == ' Standard'
         
@@ -51,17 +55,35 @@ class neural_networks:
         
         
         self.X_train, self.X_dev, self.y_train, self.y_dev = self.train_dev_split(self.X_train_dev.T, self.y_train_dev.T)
-
+        
+        #print('=====================================================')
+        #print('Train set X shape: ' + str(self.X_train.shape))
+        #print('Train set y shape: ' + str(self.y_train.shape))
+        #print('Dev   set x shape: ' + str(self.X_dev.shape))
+        #print('Dev   set y shape: ' + str(self.y_dev.shape))
+        #print('X: ' + str(type(self.X_train)) + ', y: ' + str(type(self.y_train)))
+        #print('Layer dimensions: ' + str(layers))
+        #print('=====================================================\n')
+        
+        return
+    
+    ####################################
+    ###  Setup for tf and fit model  ###
+    ####################################
+        
+    def fit_neural_network(self, layers, learning_rate = 0.001, num_epochs = 401, minibatch_size = 128):
+        
+        self.layers = layers
+        
         ### CONSTANTS DEFINING THE MODEL ####
         
         print('=====================================================')
-        print('Train set X shape: ' + str(self.X_train.shape))
-        print('Train set y shape: ' + str(self.y_train.shape))
-        print('Dev   set x shape: ' + str(self.X_dev.shape))
-        print('Dev   set y shape: ' + str(self.y_dev.shape))
-        print('X: ' + str(type(self.X_train)) + ', y: ' + str(type(self.y_train)))
-        print('Layer dimensions: ' + str(layers))
+        print('Layer dimensions: ' + str(self.layers))
+        print('Learning rate:    ' + str(learning_rate))
+        print('Number of epochs: ' + str(num_epochs))
+        print('Minibatch size:   ' + str(minibatch_size))
         print('=====================================================\n')
+        
         
         train_x = tf.data.Dataset.from_tensor_slices(self.X_train.T)
         train_y = tf.data.Dataset.from_tensor_slices(self.y_train.T)
@@ -73,13 +95,15 @@ class neural_networks:
         test_y = tf.data.Dataset.from_tensor_slices(self.y_test.T)
 
         self.parameters, costs = gatti.model(train_x, train_y, dev_x, dev_y, test_x, test_y, self.layers, self.areaIdx,
-                                        learning_rate = 0.001, num_epochs = 401, minibatch_size = 128)
+                                        learning_rate, num_epochs, minibatch_size)
         
-        return
-        
-        
+        return self.parameters, costs
     
-    def predictionsRMSE(self, test = False):
+    ##########################################
+    ###  Make predictions + evaluate RMSE  ###
+    ##########################################
+    
+    def predictions_RMSE(self, test = False):
     
         if test == True:
             X_pred = np.vstack((self.X_train_dev.T, self.X_train.T)).T
@@ -108,6 +132,7 @@ class neural_networks:
         
         print('=====================================================')
         print('RMSE comparison MF Neural Net vs LF LES over test_dev')
+        print('RMSE consider the test set? ' + str(test))
         print("MF NN  integral RMSE %f" %NN_RMSE)
         print("LF LES integral RMSE %f" %LF_RMSE)
         print('=====================================================')
@@ -115,6 +140,11 @@ class neural_networks:
         return X_pred*self.X_std+self.X_mean, Cp_NN.numpy(), HF_Cp
 
 
+    
+    ##########################################
+    ###  function to make the data split   ###
+    ##########################################
+    
     def train_dev_split(self, X, y):
         
         if abs(self.train_size + self.dev_size - 1.0) > 1e-6:
@@ -123,6 +153,12 @@ class neural_networks:
         X_train, X_dev, y_train, y_dev = train_test_split(X, y, test_size=self.dev_size, random_state=42)
         
         return X_train.T, X_dev.T, y_train.T, y_dev.T
+    
+    
+    
+##########################################################
+######### Dataset split into train_dev and test; #########
+##########################################################
         
         
         
@@ -204,27 +240,13 @@ class preprocess_features:
         
         return pd.concat(data, axis=0) 
     
-def readDat(patches, angles, deltas, directory = 'probesToDat/'):
+    
+    
+##########################################################
+######## Utilities to save and read dat for plots ########
+##########################################################
 
-    roundoff = 12
-    probes = {}
 
-    for lvl in deltas:
-        for ang in angles:
-            for pl in patches:
-                    
-                dictKey = lvl + str(ang) + pl
-                
-                #fName = str('probesToDat/'+dictKey+'.dat')
-                fName = str(directory+dictKey+'.dat')
-                
-                temp = np.loadtxt(fName, skiprows=1)
-                
-                coords = np.transpose(np.array([temp[:,0],temp[:,1],temp[:,2]]))
-                
-                probes[dictKey] = {'coords': coords, 'rmsCp': np.around(temp[:,3],roundoff)}
-
-    return probes
 
 def saveToDat(patches, angles, resolution, variables, labels, trainDF, X_pred, Cp_NN, Cp_HF):
 
@@ -269,15 +291,38 @@ def saveToDat(patches, angles, resolution, variables, labels, trainDF, X_pred, C
             
             np.savetxt(fNameNN, NNPred, header = str(NNEntries))
             np.savetxt(fNameHF, HFPred, header = str(HFEntries))
+    
+def readDat(patches, angles, deltas, directory = 'probesToDat/'):
+
+    roundoff = 12
+    probes = {}
+
+    for lvl in deltas:
+        for ang in angles:
+            for pl in patches:
+                    
+                dictKey = lvl + str(ang) + pl
+                
+                #fName = str('probesToDat/'+dictKey+'.dat')
+                fName = str(directory+dictKey+'.dat')
+                
+                temp = np.loadtxt(fName, skiprows=1)
+                
+                coords = np.transpose(np.array([temp[:,0],temp[:,1],temp[:,2]]))
+                
+                probes[dictKey] = {'coords': coords, 'rmsCp': np.around(temp[:,3],roundoff)}
+
+    return probes
+
+
+
+##########################################################
+########                 CODE BODY                ########
+##########################################################
+
 
 
 np.random.seed(3)
-
-
-#angles     = [0,10,20,30,40,50,60,70,80,90]
-#resolution = ['Coarsest','Coarse']
-#variables  = ['CfMean','TKE','U','gradP','rmsCp','peakminCp','peakMaxCp','theta','LV0','Area']
-#labels     = 'meanCp'
 
 angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,20,40,60,80]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
@@ -300,16 +345,22 @@ CpScale = {'0' :{'meanCp': [-1.2, 1.0],'rmsCp': [0, 0.36],'peakMaxCp': [-0.5, 1.
 datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
 
 X_train_dev, X_test, y_train_dev, y_test = datasplit.split_dataset()
+
+# Neural Nets training; touch here for grid search
         
 layers = [X_train_dev.shape[0],10,10,5,3,1]
 
-neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, layers, variables, labels)
+neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
 
-X_pred, Cp_NN, Cp_HF  = neuralNet.predictionsRMSE()
+parameters, costs = neuralNet.fit_neural_network(layers, 0.001, 401, 128)
+
+X_pred, Cp_NN, Cp_HF  = neuralNet.predictions_RMSE(False)
 
 trainDF = datasplit.read_file([resolution['LF']], angles['HF'])
 
 saveToDat(patches, angles['HF'], resolution, variables, labels, trainDF, X_pred, Cp_NN, Cp_HF)
+
+# Neural nets has been fitted, used to predict, and the output has been saved into a .dat 
      
 for ang in angles['HF']:
 
