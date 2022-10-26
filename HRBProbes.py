@@ -231,12 +231,12 @@ def setColorbar(probes, deltas, ang, patches, qty, cbar, resCompare):
 def plotQty(probes, deltas, angles, patches, quantities, cbarDict, directory = './Plots/', resCompare = False):
     
     nColors = 25
-    my_dpi = 100
+    #my_dpi = 100
     
     #concatenateQty = []
     
                 
-    plt.figure(figsize=(2560/my_dpi, 480/my_dpi), dpi=my_dpi)
+    #plt.figure(figsize=(2560/my_dpi, 480/my_dpi), dpi=my_dpi)
     for qty in quantities:
         
         cbar = cbarDict[qty]
@@ -304,18 +304,18 @@ def plotQty(probes, deltas, angles, patches, quantities, cbarDict, directory = '
                     plt.axis('equal')
                     #if resCompare:
                         #plt.colorbar()
-                    
+                            
                 if not(resCompare):
                     plt.colorbar(CS)
                     #plt.colorbar(CS, ticks = np.linspace(cbar[0],cbar[1],3))
-                
-                #plt.title(stringa)
-                plt.axis('off')
-                
-    #plt.savefig(directory+str(int(ang))+lvl + '.png', bbox_inches='tight')
-    plt.show(block=True)
-    plt.close('all')
-    plt.close()
+                    
+                    plt.title(directory+str(int(ang))+lvl)
+                    plt.axis('off')
+                        
+                plt.savefig(directory+str(int(ang))+lvl + '.png', bbox_inches='tight')
+                #plt.show(block=True)
+                plt.close('all')
+                plt.close()
     
     return
 

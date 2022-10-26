@@ -2,6 +2,7 @@ import numpy   as np
 import pandas  as pd
 import tensorflow as tf
 import tfNeuralNetGATTI as gatti
+import HRBProbes
 from sklearn.model_selection import train_test_split
 
 import matplotlib
@@ -19,45 +20,100 @@ class neural_networks:
     train_size = 0.80
     dev_size = 0.20
     
-    def __init__(self, X_train_nn, X_test_nn, y_train_dev, y_test, layers):
+    def __init__(self, X_train_dev_nn, X_test_nn, y_train_dev, y_test, layers, variables, labels, learn_delta = False):
         
         #if dataset == ' Standard'
         
-        self.nFeatures, self.nSamples = X_train_nn.shape
+        self.areaIdx  = variables.index('Area')
+        self.labelIdx = variables.index(labels)
         
-        #self.X_mean = np.mean(X_train_nn, axis = 1, keepdims = True)
-        #self.X_std  = np.std(X_train_nn,  axis = 1, keepdims = True, ddof = 1)+1e-10
+        self.learn_delta = learn_delta
         
-        X_train_dev = (X_train_nn - self.X_mean)/self.X_std
-        X_test      = (X_test_nn  - self.X_mean)/self.X_std
+        if self.learn_delta == True:
+            y_train_dev = y_train_dev - X_train_dev_nn[self.labelIdx,:]
+            y_test      = y_train_dev - X_test_nn[self.labelIdx,:]
         
-        #print(X_train_dev.shape, X_test.shape, y_train_dev.shape, y_test.shape)
+        self.layers = layers
         
-        X_train, X_dev, y_train, y_dev = self.train_dev_split(X_train_dev.T, y_train_dev.T)
+        self.nFeatures, self.nSamples = X_train_dev_nn.shape
         
-        train_x = tf.data.Dataset.from_tensor_slices(X_train_dev.T)
-        train_y = tf.data.Dataset.from_tensor_slices(y_train_dev.T)
-
-        dev_x = tf.data.Dataset.from_tensor_slices(X_train_dev.T)
-        dev_y = tf.data.Dataset.from_tensor_slices(y_train_dev.T)
-
-        test_x = tf.data.Dataset.from_tensor_slices(X_test.T)
-        test_y = tf.data.Dataset.from_tensor_slices(y_test.T)
+        self.X_mean = np.mean(X_train_dev_nn, axis = 1, keepdims = True)
+        self.X_std  = np.std(X_train_dev_nn,  axis = 1, keepdims = True, ddof = 1)+1e-10
+        
+        self.X_mean[self.areaIdx] = 0.0
+        self.X_std[self.areaIdx]  = 1.0
+        
+        self.X_train_dev = (X_train_dev_nn - self.X_mean)/self.X_std
+        self.y_train_dev = y_train_dev
+        
+        self.X_test = (X_test_nn  - self.X_mean)/self.X_std
+        self.y_test = y_test
+        
+        
+        self.X_train, self.X_dev, self.y_train, self.y_dev = self.train_dev_split(self.X_train_dev.T, self.y_train_dev.T)
 
         ### CONSTANTS DEFINING THE MODEL ####
         
         print('=====================================================')
-        print('Train set X shape: ' + str(X_train.shape))
-        print('Test  set y shape: ' + str(y_train.shape))
-        print('Train set x shape: ' + str(X_dev.shape))
-        print('Test  set y shape: ' + str(y_dev.shape))
-        print('X: ' + str(type(X_train)) + ', y: ' + str(type(y_train)))
+        print('Train set X shape: ' + str(self.X_train.shape))
+        print('Train set y shape: ' + str(self.y_train.shape))
+        print('Dev   set x shape: ' + str(self.X_dev.shape))
+        print('Dev   set y shape: ' + str(self.y_dev.shape))
+        print('X: ' + str(type(self.X_train)) + ', y: ' + str(type(self.y_train)))
         print('Layer dimensions: ' + str(layers))
         print('=====================================================\n')
+        
+        train_x = tf.data.Dataset.from_tensor_slices(self.X_train.T)
+        train_y = tf.data.Dataset.from_tensor_slices(self.y_train.T)
 
-        parameters, costs = gatti.model(train_x, train_y, dev_x, dev_y, test_x, test_y, layers, learning_rate = 0.01,
-                                        num_epochs = 2001, minibatch_size = 0)
+        dev_x = tf.data.Dataset.from_tensor_slices(self.X_dev.T)
+        dev_y = tf.data.Dataset.from_tensor_slices(self.y_dev.T)
+
+        test_x = tf.data.Dataset.from_tensor_slices(self.X_test.T)
+        test_y = tf.data.Dataset.from_tensor_slices(self.y_test.T)
+
+        self.parameters, costs = gatti.model(train_x, train_y, dev_x, dev_y, test_x, test_y, self.layers, self.areaIdx,
+                                        learning_rate = 0.001, num_epochs = 401, minibatch_size = 128)
+        
+        return
+        
+        
     
+    def predictionsRMSE(self, test = False):
+    
+        if test == True:
+            X_pred = np.vstack((self.X_train_dev.T, self.X_train.T)).T
+            HF_Cp  = np.vstack((self.y_train_dev.T, self.y_train.T)).T
+        else:
+            X_pred = self.X_train_dev
+            HF_Cp  = self.y_train_dev
+        
+        nFeatures, nPoints = X_pred.shape
+        
+        pred_X = tf.data.Dataset.from_tensor_slices(X_pred.T)
+        Cp_HF  = tf.data.Dataset.from_tensor_slices(HF_Cp.T)
+    
+        pred_dataset = tf.data.Dataset.zip((pred_X, Cp_HF))
+        pred_bacth = pred_dataset.batch(nPoints).prefetch(8)
+        
+        for (X, y) in pred_bacth:
+            
+            # Compute MF error (de-normalize data + RMSE computation)
+            _, Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
+            NN_RMSE  = gatti.compute_cost(tf.transpose(y), Cp_NN, self.layers, tf.gather(X, self.areaIdx, axis=1))
+            
+            # Compute LF error (de-normalize data + RMSE computation)
+            y_LF = tf.gather(X, self.labelIdx, axis=1)*self.X_std[self.labelIdx] + self.X_mean[self.labelIdx]
+            LF_RMSE  = gatti.compute_cost(tf.transpose(y), y_LF, self.layers, tf.gather(X, self.areaIdx, axis=1))
+        
+        print('=====================================================')
+        print('RMSE comparison MF Neural Net vs LF LES over test_dev')
+        print("MF NN  integral RMSE %f" %NN_RMSE)
+        print("LF LES integral RMSE %f" %LF_RMSE)
+        print('=====================================================')
+        
+        return X_pred*self.X_std+self.X_mean, Cp_NN.numpy(), HF_Cp
+
 
     def train_dev_split(self, X, y):
         
@@ -147,9 +203,76 @@ class preprocess_features:
                 data.append(pd.read_csv(str('Features/' + res + str(ang))))
         
         return pd.concat(data, axis=0) 
+    
+def readDat(patches, angles, deltas, directory = 'probesToDat/'):
+
+    roundoff = 12
+    probes = {}
+
+    for lvl in deltas:
+        for ang in angles:
+            for pl in patches:
+                    
+                dictKey = lvl + str(ang) + pl
+                
+                #fName = str('probesToDat/'+dictKey+'.dat')
+                fName = str(directory+dictKey+'.dat')
+                
+                temp = np.loadtxt(fName, skiprows=1)
+                
+                coords = np.transpose(np.array([temp[:,0],temp[:,1],temp[:,2]]))
+                
+                probes[dictKey] = {'coords': coords, 'rmsCp': np.around(temp[:,3],roundoff)}
+
+    return probes
+
+def saveToDat(patches, angles, resolution, variables, labels, trainDF, X_pred, Cp_NN, Cp_HF):
+
+    predDF = pd.DataFrame(trainDF, columns = variables)
+
+    predDF[str(labels) + 'NN'] = Cp_NN.T
+    predDF[str(labels) + 'HF'] = Cp_HF.T
+    cumulativeDF = pd.merge(trainDF,predDF)
+
+    NNEntries = ['# x', 'y', 'z', labels + 'NN']
+    HFEntries = ['# x', 'y', 'z', labels + 'HF']
+
+    for ang in angles:
+        
+        angleData = cumulativeDF.loc[cumulativeDF['theta'] == ang]
+        
+        for pl in patches:
+        
+            if   pl == 'L':
+                df = angleData.loc[abs(angleData['z'] - 0.15) < 1e-6]
+                
+            elif pl == 'W':
+                df = angleData.loc[abs(angleData['z'] + 0.15) < 1e-6]
+                
+            elif pl == 'T':
+                df = angleData.loc[abs(angleData['y'] - 2.0) < 1e-6]
+                
+            elif pl == 'F':
+                df = angleData.loc[abs(angleData['# x']) < 1e-6]
+                
+            elif pl == 'R':
+                df = angleData.loc[abs(angleData['# x'] - 1.0) < 1e-6]
+                
+            else:
+                raise Exception("PL is sughellamento totale")
+            
+            NNPred = df[NNEntries].values
+            HFPred = df[HFEntries].values
+            
+            fNameNN = str('./NNPred/NeuralNet' + str(ang) + pl + '.dat')
+            fNameHF = str('./HFPred/' + resolution['HF'] + str(ang) + pl + '.dat')
+            
+            np.savetxt(fNameNN, NNPred, header = str(NNEntries))
+            np.savetxt(fNameHF, HFPred, header = str(HFEntries))
 
 
 np.random.seed(3)
+
 
 #angles     = [0,10,20,30,40,50,60,70,80,90]
 #resolution = ['Coarsest','Coarse']
@@ -158,13 +281,50 @@ np.random.seed(3)
 
 angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,20,40,60,80]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
-variables  = ['CfMean','TKE','U','gradP','theta','meanCp','rmsCp','peakminCp','peakMaxCp','Area']
-labels     = 'peakminCp'
+variables  = ['CfMean','TKE','U','gradP','UDotN','theta','meanCp','rmsCp','peakminCp','peakMaxCp','Area']
+labels     = 'rmsCp'
+
+patches = {'F':'front','L':'leeward','R':'rear','T':'top','W':'windward'}
+
+CpScale = {'0' :{'meanCp': [-1.2, 1.0],'rmsCp': [0, 0.36],'peakMaxCp': [-0.5, 1.7],'peakminCp': [-2.5, 0.5]},
+           '10':{'meanCp': [-1.2, 1.0],'rmsCp': [0, 0.36],'peakMaxCp': [-0.5, 1.7],'peakminCp': [-2.5, 0.5]},
+           '20':{'meanCp': [-1.2, 1.0],'rmsCp': [0, 0.36],'peakMaxCp': [-0.5 ,1.7],'peakminCp': [-2.5, 0.5]},
+           '30':{'meanCp': [-1.5, 1.0],'rmsCp': [0, 0.45],'peakMaxCp': [-0.5, 1.7],'peakminCp': [-3.0, 0.5]},
+           '40':{'meanCp': [-2.0, 1.0],'rmsCp': [0, 0.55],'peakMaxCp': [-1.0, 1.5],'peakminCp': [-4.0, 0.3]},
+           '50':{'meanCp': [-2.0, 1.0],'rmsCp': [0, 0.55],'peakMaxCp': [-1.0, 1.7],'peakminCp': [-4.0, 0.3]},
+           '60':{'meanCp': [-1.2, 1.0],'rmsCp': [0, 0.45],'peakMaxCp': [-0.5, 1.5],'peakminCp': [-3.5, 0.3]},
+           '70':{'meanCp': [-1.2, 1.0],'rmsCp': [0, 0.45],'peakMaxCp': [-0.5, 1.5],'peakminCp': [-3.0, 0.5]},
+           '80':{'meanCp': [-1.0, 1.0],'rmsCp': [0, 0.35],'peakMaxCp': [-0.3, 1.5],'peakminCp': [-2.5, 0.5]},
+           '90':{'meanCp': [-1.0, 1.0],'rmsCp': [0, 0.30],'peakMaxCp': [-0.3 ,1.5],'peakminCp': [-2.0, 0.5]}}
 
 datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
 
 X_train_dev, X_test, y_train_dev, y_test = datasplit.split_dataset()
         
-layers = [X_train_dev.shape[0],5,5,3,1]
+layers = [X_train_dev.shape[0],10,10,5,3,1]
 
-LR = neural_networks(X_train_dev, X_test, y_train_dev, y_test, layers)
+neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, layers, variables, labels)
+
+X_pred, Cp_NN, Cp_HF  = neuralNet.predictionsRMSE()
+
+trainDF = datasplit.read_file([resolution['LF']], angles['HF'])
+
+saveToDat(patches, angles['HF'], resolution, variables, labels, trainDF, X_pred, Cp_NN, Cp_HF)
+     
+for ang in angles['HF']:
+
+    probes = readDat(patches, [ang], ['NeuralNet'], directory = 'NNPred/')
+    HRBProbes.plotQty(probes, ['NeuralNet'], [ang], patches, [labels], CpScale[str(ang)], directory = './Plots/', resCompare = False)
+
+    probes = readDat(patches, [ang], [resolution['HF']], directory = 'HFPred/')
+    HRBProbes.plotQty(probes, [resolution['HF']], [ang], patches, [labels], CpScale[str(ang)], directory = './Plots/', resCompare = False)
+
+
+
+
+
+
+
+
+
+
