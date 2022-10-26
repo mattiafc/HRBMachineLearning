@@ -16,7 +16,10 @@ class neural_networks:
     y_mean = 0
     y_std  = 1    
     
-    def __init__(self, X_train_nn, X_test_nn, y_train_nn, y_test_nn, layers):
+    train_size = 0.80
+    dev_size = 0.20
+    
+    def __init__(self, X_train_nn, X_test_nn, y_train_dev, y_test, layers):
         
         #if dataset == ' Standard'
         
@@ -25,18 +28,20 @@ class neural_networks:
         #self.X_mean = np.mean(X_train_nn, axis = 1, keepdims = True)
         #self.X_std  = np.std(X_train_nn,  axis = 1, keepdims = True, ddof = 1)+1e-10
         
-        #X_train = (X_train_nn - self.X_mean)/self.X_std
-        #X_test  = (X_test_nn  - self.X_mean)/self.X_std
+        X_train_dev = (X_train_nn - self.X_mean)/self.X_std
+        X_test      = (X_test_nn  - self.X_mean)/self.X_std
         
-        y_train = y_train_nn
-        y_test  = y_test_nn
+        #print(X_train_dev.shape, X_test.shape, y_train_dev.shape, y_test.shape)
         
-        train_x = tf.data.Dataset.from_tensor_slices(X_train.T)
+        X_train, X_dev, y_train, y_dev = self.train_dev_split(X_train_dev.T, y_train_dev.T)
+        
+        train_x = tf.data.Dataset.from_tensor_slices(X_train_dev.T)
+        train_y = tf.data.Dataset.from_tensor_slices(y_train_dev.T)
+
+        dev_x = tf.data.Dataset.from_tensor_slices(X_train_dev.T)
+        dev_y = tf.data.Dataset.from_tensor_slices(y_train_dev.T)
 
         test_x = tf.data.Dataset.from_tensor_slices(X_test.T)
-
-        train_y = tf.data.Dataset.from_tensor_slices(y_train.T)
-
         test_y = tf.data.Dataset.from_tensor_slices(y_test.T)
 
         ### CONSTANTS DEFINING THE MODEL ####
@@ -44,33 +49,28 @@ class neural_networks:
         print('=====================================================')
         print('Train set X shape: ' + str(X_train.shape))
         print('Test  set y shape: ' + str(y_train.shape))
-        print('Train set x shape: ' + str(X_test.shape))
-        print('Test  set y shape: ' + str(y_test.shape))
+        print('Train set x shape: ' + str(X_dev.shape))
+        print('Test  set y shape: ' + str(y_dev.shape))
         print('X: ' + str(type(X_train)) + ', y: ' + str(type(y_train)))
         print('Layer dimensions: ' + str(layers))
         print('=====================================================\n')
 
-        parameters, costs = gatti.model(train_x, train_y, test_x, test_y, layers)
-        
-        #parameters, costs = self.L_layer_model(self.X_train, self.y_train)
-        
-        #pred_train = predict(self.X_train, self.y_train, parameters)
-        #accuracy_train = np.sum(pred_train == self.y_train)/self.y_train.shape[1]
-        
-        #pred_test = predict(self.X_test, self.y_test, parameters)
-        #accuracy_test = np.sum(pred_test == self.y_test)/self.y_test.shape[1]
-        
-        #print('=====================================================')
-        #print('Train set accuracy is: ' + str(accuracy_train))
-        #print('Test  set accuracy is: ' + str(accuracy_test))
-        #print('=====================================================\n')
-        
-        
-
-class preprocess_features:
+        parameters, costs = gatti.model(train_x, train_y, dev_x, dev_y, test_x, test_y, layers, learning_rate = 0.01,
+                                        num_epochs = 2001, minibatch_size = 0)
     
-    train_size = 0.80
-    test_size = 0.20
+
+    def train_dev_split(self, X, y):
+        
+        if abs(self.train_size + self.dev_size - 1.0) > 1e-6:
+            raise Exception("Summation of dataset splits should be 1")
+        
+        X_train, X_dev, y_train, y_dev = train_test_split(X, y, test_size=self.dev_size, random_state=42)
+        
+        return X_train.T, X_dev.T, y_train.T, y_dev.T
+        
+        
+        
+class preprocess_features:
 
     def __init__(self, angles, resolutions, features, label, dataset = 'Standard'):
 
@@ -93,20 +93,29 @@ class preprocess_features:
         
         elif self.dataset == 'MultiFidelity':
             
-            LFTrainDF = self.read_file([self.resolutions['LF']], self.angles['LF'])
-            HFTrainDF = self.read_file([self.resolutions['HF']], self.angles['HF'])
+            """
+            Train set: 
+                - data from LF model @ HF angles
+                - label from HF model @ HF angles
+            """
+            trainDF     = self.read_file([self.resolutions['LF']], self.angles['HF'])
+            trainLabels = self.read_file([self.resolutions['HF']], self.angles['HF'])
             
-            trainDF = pd.concat([LFTrainDF, HFTrainDF], axis=0)
-            print(trainDF)
+            
+            """
+            Test set: 
+                - data from LF model @ withheld (test) angles
+                - label from HF model @ withheld (test) angles
+            """
             testAngles = np.sort(list(set(self.angles['LF']) - set(self.angles['HF'])))
-            testDF = self.read_file([self.resolutions['HF']], testAngles)
-            print(testDF)
+            testDF     = self.read_file([self.resolutions['LF']], testAngles)
+            testLabels = self.read_file([self.resolutions['HF']], testAngles)
 
             X_train = trainDF[variables].values.T
-            y_train = (trainDF[labels].values).reshape(1,-1)
+            y_train = (trainLabels[labels].values).reshape(1,-1)
 
             X_test = testDF[variables].values.T
-            y_test = (testDF[labels].values).reshape(1,-1)
+            y_test = (testLabels[labels].values).reshape(1,-1)
             
         
         print('=====================================================')
@@ -147,16 +156,15 @@ np.random.seed(3)
 #variables  = ['CfMean','TKE','U','gradP','rmsCp','peakminCp','peakMaxCp','theta','LV0','Area']
 #labels     = 'meanCp'
 
-angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,30,60,90]}
+angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,20,40,60,80]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
-variables  = ['CfMean','TKE','U','gradP','meanCp','peakminCp','peakMaxCp','theta','LV0','Area']
-labels     = 'rmsCp'
+variables  = ['CfMean','TKE','U','gradP','theta','meanCp','rmsCp','peakminCp','peakMaxCp','Area']
+labels     = 'peakminCp'
 
 datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
 
-X_train, X_test, y_train, y_test = datasplit.split_dataset()
+X_train_dev, X_test, y_train_dev, y_test = datasplit.split_dataset()
         
-layers = [X_train.shape[0],5,5,1]
-#layers = [n_x,10,7,6,5,4,1]
+layers = [X_train_dev.shape[0],5,5,3,1]
 
-LR = neural_networks(X_train, X_test, y_train, y_test, layers)
+LR = neural_networks(X_train_dev, X_test, y_train_dev, y_test, layers)
