@@ -104,6 +104,7 @@ normals = {'F': np.array([-1,0,0]),
            'T': np.array([0, 1,0])}
 
 resolutions = {'Coarsest':'150001','Coarse':'240001'}
+resolutions = {'Coarsest':'150001','Coarse':'240001'}
 
 quantities = ['CfMean','TKE','U','gradP','UDotN','meanCp','rmsCp','peakMaxCp','peakminCp','theta','LV0','Area']
 angles = list(range(0,100,10))

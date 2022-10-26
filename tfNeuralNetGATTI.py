@@ -24,10 +24,9 @@ def initialize_parameters(layers):
 
     for l in range(1, L):
     
-        parameters['W' + str(l)] = tf.Variable(np.random.randn(layers[l], layers[l-1])/np.sqrt(layers[l-1]+layers[l]))
-        parameters['b' + str(l)] = tf.Variable(np.random.randn(layers[l], 1))
+        parameters['W' + str(l)] = tf.Variable(np.random.randn(layers[l], layers[l-1])/np.sqrt(layers[l-1]))
+        parameters['b' + str(l)] = tf.Variable(np.random.rand(layers[l], 1))
         
-        ## YOUR CODE ENDS HERE
         #print(parameters['W' + str(l)].shape)
         assert(parameters['W' + str(l)].shape == (layers[l], layers[l - 1]))
         assert(parameters['b' + str(l)].shape == (layers[l], 1))
@@ -37,48 +36,42 @@ def initialize_parameters(layers):
 
 def forward_propagation(X, parameters, layers):
     
-    parameters['A0'] = tf.constant(X)
+    A = tf.constant(X)
     
     L = len(layers)-1
 
     for l in range(1, L):
         
-        parameters['Z' + str(l)] = tf.add(tf.matmul(parameters['W' + str(l)], parameters['A' + str(l-1)]), parameters['b' + str(l)])
-        parameters['A' + str(l)] = tf.keras.activations.tanh(parameters['Z' + str(l)])
+        Z = tf.add(tf.matmul(parameters['W' + str(l)], A), parameters['b' + str(l)])
+        A = tf.keras.activations.tanh(Z)
         
         
-        assert(parameters['A' + str(l)].shape[0] == parameters['b' + str(l)].shape[0])
-        assert(parameters['A' + str(l)].shape[1] == X.shape[1])
-        assert(parameters['A' + str(l)].shape == parameters['Z' + str(l)].shape)
+        assert(A.shape[0] == parameters['b' + str(l)].shape[0])
+        assert(A.shape[1] == X.shape[1])
+        assert(A.shape == Z.shape)
     
-    parameters['Z' + str(L)] = tf.add(tf.matmul(parameters['W' + str(L)], parameters['A' + str(L-1)]), parameters['b' + str(L)])
-    parameters['A' + str(L)] = tf.keras.activations.tanh(parameters['Z' + str(L)])
+    Z = tf.add(tf.matmul(parameters['W' + str(L)], A), parameters['b' + str(L)])
+    A = tf.keras.activations.tanh(Z)
         
         
-    assert(parameters['A' + str(L)].shape[0] == parameters['b' + str(L)].shape[0])
-    assert(parameters['A' + str(L)].shape[1] == X.shape[1])
-    assert(parameters['A' + str(L)].shape == parameters['Z' + str(L)].shape)
+    assert(A.shape[0] == parameters['b' + str(L)].shape[0])
+    assert(A.shape[1] == X.shape[1])
+    assert(A.shape == Z.shape)
     
     
-    return parameters
+    return parameters, A
 
 
-def compute_cost(labels, parameters, layers, area):
-    
-    L = len(layers)-1
-    
-    y_hat = parameters['A' + str(L)]
+def compute_cost(labels, y_hat, layers, area):
     
     ATimesSq = tf.multiply(tf.pow(tf.subtract(y_hat, labels),2), area)
     
-    cost = tf.sqrt(tf.divide(tf.reduce_sum(ATimesSq),tf.reduce_sum(area)))
+    RMSE = tf.sqrt(tf.divide(tf.reduce_sum(ATimesSq),tf.reduce_sum(area)))
     
-    #ATimesSq = tf.sqrt( tf.reduce_mean(tf.pow(tf.subtract(y_hat, labels),2)))
-    
-    return cost
+    return RMSE
 
-def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, learning_rate = 0.01,
-          num_epochs = 200, minibatch_size = 0, print_cost = True):
+def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
+          learning_rate = 0.0005, num_epochs = 200, minibatch_size = 0, test_check = False):
     
     # Initalize costs, variables, and optimizer
     
@@ -95,9 +88,9 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, learning_rate 
     
     # Building training and dev set batches
     
-    dataset      = tf.data.Dataset.zip((X_train, Y_train))
-    dev_dataset  = tf.data.Dataset.zip((X_dev,   Y_dev))
-    test_dataset = tf.data.Dataset.zip((X_test,  Y_test))
+    train_dataset = tf.data.Dataset.zip((X_train, Y_train))
+    dev_dataset   = tf.data.Dataset.zip((X_dev,   Y_dev))
+    test_dataset  = tf.data.Dataset.zip((X_test,  Y_test))
     
     train_size = tf.data.experimental.cardinality(X_train).numpy()
     dev_size   = tf.data.experimental.cardinality(X_dev).numpy()
@@ -108,9 +101,9 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, learning_rate 
         
     nBatches = train_size//minibatch_size
     
-    minibatches      = dataset.batch(minibatch_size).prefetch(8)
-    dev_minibatches  = dev_dataset.batch(dev_size).prefetch(8)
-    test_minibatches = test_dataset.batch(test_size).prefetch(8)
+    train_minibatches = train_dataset.batch(minibatch_size).prefetch(8)
+    dev_minibatches   = dev_dataset.batch(dev_size).prefetch(8)
+    test_minibatches  = test_dataset.batch(test_size).prefetch(8)
     
     X_train = X_train.batch(minibatch_size, drop_remainder=True).prefetch(8)# <<< extra step    
     Y_train = Y_train.batch(minibatch_size, drop_remainder=True).prefetch(8) # loads memory faster
@@ -121,14 +114,13 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, learning_rate 
         
         train_cost = 0.
         
-        for (minibatch_X, minibatch_Y) in minibatches:
+        for (minibatch_X, minibatch_Y) in train_minibatches:
             
             with tf.GradientTape() as tape:
                 
                 # Forward propagation, Loss computation
-                parameters = forward_propagation(tf.transpose(minibatch_X), parameters, layers)
-                
-                minibatch_cost = compute_cost(tf.transpose(minibatch_Y), parameters, layers, tf.gather(minibatch_X, layers[0]-1, axis=1))
+                parameters, y_hat_train = forward_propagation(tf.transpose(minibatch_X), parameters, layers)
+                minibatch_cost = compute_cost(tf.transpose(minibatch_Y), y_hat_train, layers, tf.gather(minibatch_X, areaIdx, axis=1))
                 
             
             trainable_variables = train_vars
@@ -140,30 +132,17 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, learning_rate 
         
         
         # Print the cost every 10 epochs
-        if print_cost == True and epoch % 10 == 0:
+        if epoch % 10 == 0:
             print ("Cost after epoch %i: %f" % (epoch, train_cost))
             
             for (dev_minibatch_X, dev_minibatch_Y) in dev_minibatches:
             
-                _ = forward_propagation(tf.transpose(dev_minibatch_X),  parameters, layers)
-                dev_cost  = compute_cost(tf.transpose(dev_minibatch_Y), parameters, layers, tf.gather(dev_minibatch_X, layers[0]-1, axis=1))
+                _, y_hat_dev = forward_propagation(tf.transpose(dev_minibatch_X),  parameters, layers)
+                dev_cost  = compute_cost(tf.transpose(dev_minibatch_Y), y_hat_dev, layers, tf.gather(dev_minibatch_X, areaIdx, axis=1))
                 
             print("Dev cost %f" %dev_cost)
 
             costs.append(train_cost)
-            
-    for (test_minibatch_X, test_minibatch_Y) in test_minibatches:
-    
-        _ = forward_propagation(tf.transpose(test_minibatch_X),  parameters, layers)
-        test_cost  = compute_cost(tf.transpose(test_minibatch_Y), parameters, layers, tf.gather(test_minibatch_X, layers[0]-1, axis=1))
-    
-        
-    print('=====================================================')
-    print('Final results after training')
-    print("Train integral RMSE %f" %train_cost)
-    print("Dev   integral RMSE %f" %dev_cost)
-    print("Test  integral RMSE %f" %test_cost)
-    print('=====================================================')
             
     return parameters, costs
 

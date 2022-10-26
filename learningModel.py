@@ -19,45 +19,91 @@ class neural_networks:
     train_size = 0.80
     dev_size = 0.20
     
-    def __init__(self, X_train_nn, X_test_nn, y_train_dev, y_test, layers):
+    def __init__(self, X_train_nn, X_test_nn, y_train_dev, y_test, layers, variables, labels):
         
         #if dataset == ' Standard'
         
+        self.areaIdx  = variables.index('Area')
+        self.labelIdx = variables.index(labels)
+        
+        self.layers = layers
+        
         self.nFeatures, self.nSamples = X_train_nn.shape
         
-        #self.X_mean = np.mean(X_train_nn, axis = 1, keepdims = True)
-        #self.X_std  = np.std(X_train_nn,  axis = 1, keepdims = True, ddof = 1)+1e-10
+        self.X_mean = np.mean(X_train_nn, axis = 1, keepdims = True)
+        self.X_std  = np.std(X_train_nn,  axis = 1, keepdims = True, ddof = 1)+1e-10
+        
+        self.X_mean[self.areaIdx] = 0.0
+        self.X_std[self.areaIdx]  = 1.0
         
         X_train_dev = (X_train_nn - self.X_mean)/self.X_std
-        X_test      = (X_test_nn  - self.X_mean)/self.X_std
+        self.X_test = (X_test_nn  - self.X_mean)/self.X_std
+        self.y_test = y_test
         
         #print(X_train_dev.shape, X_test.shape, y_train_dev.shape, y_test.shape)
         
-        X_train, X_dev, y_train, y_dev = self.train_dev_split(X_train_dev.T, y_train_dev.T)
+        self.X_train, self.X_dev, self.y_train, self.y_dev = self.train_dev_split(X_train_dev.T, y_train_dev.T)
         
-        train_x = tf.data.Dataset.from_tensor_slices(X_train_dev.T)
-        train_y = tf.data.Dataset.from_tensor_slices(y_train_dev.T)
+        train_x = tf.data.Dataset.from_tensor_slices(self.X_train.T)
+        train_y = tf.data.Dataset.from_tensor_slices(self.y_train.T)
 
-        dev_x = tf.data.Dataset.from_tensor_slices(X_train_dev.T)
-        dev_y = tf.data.Dataset.from_tensor_slices(y_train_dev.T)
+        dev_x = tf.data.Dataset.from_tensor_slices(self.X_dev.T)
+        dev_y = tf.data.Dataset.from_tensor_slices(self.y_dev.T)
 
-        test_x = tf.data.Dataset.from_tensor_slices(X_test.T)
-        test_y = tf.data.Dataset.from_tensor_slices(y_test.T)
+        test_x = tf.data.Dataset.from_tensor_slices(self.X_test.T)
+        test_y = tf.data.Dataset.from_tensor_slices(self.y_test.T)
 
         ### CONSTANTS DEFINING THE MODEL ####
         
         print('=====================================================')
-        print('Train set X shape: ' + str(X_train.shape))
-        print('Test  set y shape: ' + str(y_train.shape))
-        print('Train set x shape: ' + str(X_dev.shape))
-        print('Test  set y shape: ' + str(y_dev.shape))
-        print('X: ' + str(type(X_train)) + ', y: ' + str(type(y_train)))
+        print('Train set X shape: ' + str(self.X_train.shape))
+        print('Train set y shape: ' + str(self.y_train.shape))
+        print('Dev   set x shape: ' + str(self.X_dev.shape))
+        print('Dev   set y shape: ' + str(self.y_dev.shape))
+        print('X: ' + str(type(self.X_train)) + ', y: ' + str(type(self.y_train)))
         print('Layer dimensions: ' + str(layers))
         print('=====================================================\n')
 
-        parameters, costs = gatti.model(train_x, train_y, dev_x, dev_y, test_x, test_y, layers, learning_rate = 0.01,
-                                        num_epochs = 2001, minibatch_size = 0)
+        self.parameters, costs = gatti.model(train_x, train_y, dev_x, dev_y, test_x, test_y, self.layers, self.areaIdx,
+                                        learning_rate = 0.001, num_epochs = 201, minibatch_size = 128)
+        
+        self.predictionsRMSE()
     
+    def predictionsRMSE(self, test = False):
+    
+        if test == True:
+            X_pred = np.vstack((self.X_train.T, self.X_dev.T, self.X_train.T)).T
+            HF_Cp  = np.vstack((self.y_train.T, self.y_dev.T, self.y_train.T)).T
+        else:
+            X_pred = np.vstack((self.X_train.T, self.X_dev.T)).T
+            HF_Cp  = np.vstack((self.y_train.T, self.y_dev.T)).T
+        
+        nFeatures, nPoints = X_pred.shape
+        
+        pred_X = tf.data.Dataset.from_tensor_slices(X_pred.T)
+        Cp_HF  = tf.data.Dataset.from_tensor_slices(HF_Cp.T)
+    
+        pred_dataset = tf.data.Dataset.zip((pred_X, Cp_HF))
+        pred_bacth = pred_dataset.batch(nPoints).prefetch(8)
+        
+        for (X, y) in pred_bacth:
+            
+            # Compute MF error (de-normalize data + RMSE computation)
+            _, y_hat = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
+            NN_RMSE  = gatti.compute_cost(tf.transpose(y), y_hat, self.layers, tf.gather(X, self.areaIdx, axis=1))
+            
+            # Compute LF error (de-normalize data + RMSE computation)
+            y_LF = tf.gather(X, self.labelIdx, axis=1)*self.X_std[self.labelIdx] + self.X_mean[self.labelIdx]
+            LF_RMSE  = gatti.compute_cost(tf.transpose(y), y_LF, self.layers, tf.gather(X, self.areaIdx, axis=1))
+        
+        print('=====================================================')
+        print('RMSE comparison MF Neural Net vs LF LES over test_dev')
+        print("MF NN  integral RMSE %f" %NN_RMSE)
+        print("LF LES integral RMSE %f" %LF_RMSE)
+        print('=====================================================')
+        
+        return
+
 
     def train_dev_split(self, X, y):
         
@@ -160,12 +206,12 @@ np.random.seed(3)
 angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,20,40,60,80]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
 variables  = ['CfMean','TKE','U','gradP','theta','meanCp','rmsCp','peakminCp','peakMaxCp','Area']
-labels     = 'peakminCp'
+labels     = 'meanCp'
 
 datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
 
 X_train_dev, X_test, y_train_dev, y_test = datasplit.split_dataset()
         
-layers = [X_train_dev.shape[0],5,5,3,1]
+layers = [X_train_dev.shape[0],10,10,5,3,1]
 
-LR = neural_networks(X_train_dev, X_test, y_train_dev, y_test, layers)
+LR = neural_networks(X_train_dev, X_test, y_train_dev, y_test, layers, variables, labels)
