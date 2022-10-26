@@ -71,16 +71,14 @@ def compute_cost(labels, parameters, layers, area):
     
     ATimesSq = tf.multiply(tf.pow(tf.subtract(y_hat, labels),2), area)
     
-    cost = tf.divide(tf.reduce_sum(ATimesSq),tf.reduce_sum(area)) 
+    cost = tf.sqrt(tf.divide(tf.reduce_sum(ATimesSq),tf.reduce_sum(area)))
     
     #ATimesSq = tf.sqrt( tf.reduce_mean(tf.pow(tf.subtract(y_hat, labels),2)))
     
-    cost = cost
-    
     return cost
 
-def model(X_train, Y_train, X_dev, Y_dev, layers, learning_rate = 0.01,
-          num_epochs = 3000, minibatch_size = 0, print_cost = True):
+def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, learning_rate = 0.01,
+          num_epochs = 200, minibatch_size = 0, print_cost = True):
     
     # Initalize costs, variables, and optimizer
     
@@ -97,26 +95,31 @@ def model(X_train, Y_train, X_dev, Y_dev, layers, learning_rate = 0.01,
     
     # Building training and dev set batches
     
-    dataset = tf.data.Dataset.zip((X_train, Y_train))
-    dev_dataset = tf.data.Dataset.zip((X_dev, Y_dev))
+    dataset      = tf.data.Dataset.zip((X_train, Y_train))
+    dev_dataset  = tf.data.Dataset.zip((X_dev,   Y_dev))
+    test_dataset = tf.data.Dataset.zip((X_test,  Y_test))
     
     train_size = tf.data.experimental.cardinality(X_train).numpy()
     dev_size   = tf.data.experimental.cardinality(X_dev).numpy()
+    test_size  = tf.data.experimental.cardinality(X_test).numpy()
     
     if minibatch_size == 0:
         minibatch_size = train_size
+        
+    nBatches = train_size//minibatch_size
     
-    minibatches = dataset.batch(minibatch_size).prefetch(8)
-    dev_minibatches = dev_dataset.batch(dev_size).prefetch(8)
+    minibatches      = dataset.batch(minibatch_size).prefetch(8)
+    dev_minibatches  = dev_dataset.batch(dev_size).prefetch(8)
+    test_minibatches = test_dataset.batch(test_size).prefetch(8)
     
-    #X_train = X_train.batch(minibatch_size, drop_remainder=True).prefetch(8)# <<< extra step    
-    #Y_train = Y_train.batch(minibatch_size, drop_remainder=True).prefetch(8) # loads memory faster
+    X_train = X_train.batch(minibatch_size, drop_remainder=True).prefetch(8)# <<< extra step    
+    Y_train = Y_train.batch(minibatch_size, drop_remainder=True).prefetch(8) # loads memory faster
     
     # Training loop
     
     for epoch in range(num_epochs):
         
-        epoch_cost = 0.
+        train_cost = 0.
         
         for (minibatch_X, minibatch_Y) in minibatches:
             
@@ -131,25 +134,36 @@ def model(X_train, Y_train, X_dev, Y_dev, layers, learning_rate = 0.01,
             trainable_variables = train_vars
             grads = tape.gradient(minibatch_cost, trainable_variables)
             optimizer.apply_gradients(zip(grads, trainable_variables))
-            epoch_cost += minibatch_cost
-
+            train_cost += minibatch_cost
+            
+        train_cost /= nBatches
+        
+        
         # Print the cost every 10 epochs
         if print_cost == True and epoch % 10 == 0:
-            print ("Cost after epoch %i: %f" % (epoch, epoch_cost))
-            
-
-            for l in range(1, len(layers)):
-                print(tf.reduce_min(parameters['Z' + str(l)]).numpy(), tf.reduce_mean(parameters['Z' + str(l)]).numpy(), tf.reduce_max(parameters['Z' + str(l)]).numpy())
-            #print ("Train accuracy %f" % train_accuracy)
+            print ("Cost after epoch %i: %f" % (epoch, train_cost))
             
             for (dev_minibatch_X, dev_minibatch_Y) in dev_minibatches:
             
-                _ = forward_propagation(tf.transpose(dev_minibatch_X), parameters, layers)
-                cost_dev  = compute_cost(tf.transpose(dev_minibatch_Y), parameters, layers, tf.gather(dev_minibatch_X, layers[0]-1, axis=1))
+                _ = forward_propagation(tf.transpose(dev_minibatch_X),  parameters, layers)
+                dev_cost  = compute_cost(tf.transpose(dev_minibatch_Y), parameters, layers, tf.gather(dev_minibatch_X, layers[0]-1, axis=1))
                 
-            print("Dev cost %f" %cost_dev)
+            print("Dev cost %f" %dev_cost)
 
-            costs.append(epoch_cost)
+            costs.append(train_cost)
+            
+    for (test_minibatch_X, test_minibatch_Y) in test_minibatches:
+    
+        _ = forward_propagation(tf.transpose(test_minibatch_X),  parameters, layers)
+        test_cost  = compute_cost(tf.transpose(test_minibatch_Y), parameters, layers, tf.gather(test_minibatch_X, layers[0]-1, axis=1))
+    
+        
+    print('=====================================================')
+    print('Final results after training')
+    print("Train integral RMSE %f" %train_cost)
+    print("Dev   integral RMSE %f" %dev_cost)
+    print("Test  integral RMSE %f" %test_cost)
+    print('=====================================================')
             
     return parameters, costs
 

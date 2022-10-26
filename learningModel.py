@@ -35,11 +35,14 @@ class neural_networks:
         
         X_train, X_dev, y_train, y_dev = self.train_dev_split(X_train_dev.T, y_train_dev.T)
         
-        train_x = tf.data.Dataset.from_tensor_slices(X_train.T)
-        train_y = tf.data.Dataset.from_tensor_slices(y_train.T)
+        train_x = tf.data.Dataset.from_tensor_slices(X_train_dev.T)
+        train_y = tf.data.Dataset.from_tensor_slices(y_train_dev.T)
 
-        dev_x = tf.data.Dataset.from_tensor_slices(X_dev.T)
-        dev_y = tf.data.Dataset.from_tensor_slices(y_dev.T)
+        dev_x = tf.data.Dataset.from_tensor_slices(X_train_dev.T)
+        dev_y = tf.data.Dataset.from_tensor_slices(y_train_dev.T)
+
+        test_x = tf.data.Dataset.from_tensor_slices(X_test.T)
+        test_y = tf.data.Dataset.from_tensor_slices(y_test.T)
 
         ### CONSTANTS DEFINING THE MODEL ####
         
@@ -52,20 +55,8 @@ class neural_networks:
         print('Layer dimensions: ' + str(layers))
         print('=====================================================\n')
 
-        parameters, costs = gatti.model(train_x, train_y, dev_x, dev_y, layers)
-        
-        #parameters, costs = self.L_layer_model(self.X_train, self.y_train)
-        
-        #pred_train = predict(self.X_train, self.y_train, parameters)
-        #accuracy_train = np.sum(pred_train == self.y_train)/self.y_train.shape[1]
-        
-        #pred_test = predict(self.X_test, self.y_test, parameters)
-        #accuracy_test = np.sum(pred_test == self.y_test)/self.y_test.shape[1]
-        
-        #print('=====================================================')
-        #print('Train set accuracy is: ' + str(accuracy_train))
-        #print('Test  set accuracy is: ' + str(accuracy_test))
-        #print('=====================================================\n')
+        parameters, costs = gatti.model(train_x, train_y, dev_x, dev_y, test_x, test_y, layers, learning_rate = 0.01,
+                                        num_epochs = 2001, minibatch_size = 0)
     
 
     def train_dev_split(self, X, y):
@@ -102,16 +93,23 @@ class preprocess_features:
         
         elif self.dataset == 'MultiFidelity':
             
+            """
+            Train set: 
+                - data from LF model @ HF angles
+                - label from HF model @ HF angles
+            """
             trainDF     = self.read_file([self.resolutions['LF']], self.angles['HF'])
             trainLabels = self.read_file([self.resolutions['HF']], self.angles['HF'])
             
-            #trainDF = pd.concat([LFTrainDF, HFTrainDF], axis=0)
+            
+            """
+            Test set: 
+                - data from LF model @ withheld (test) angles
+                - label from HF model @ withheld (test) angles
+            """
             testAngles = np.sort(list(set(self.angles['LF']) - set(self.angles['HF'])))
             testDF     = self.read_file([self.resolutions['LF']], testAngles)
             testLabels = self.read_file([self.resolutions['HF']], testAngles)
-            
-            print(trainDF)
-            print(testDF)
 
             X_train = trainDF[variables].values.T
             y_train = (trainLabels[labels].values).reshape(1,-1)
@@ -161,7 +159,7 @@ np.random.seed(3)
 angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,20,40,60,80]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
 variables  = ['CfMean','TKE','U','gradP','theta','meanCp','rmsCp','peakminCp','peakMaxCp','Area']
-labels     = 'meanCp'
+labels     = 'peakminCp'
 
 datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
 
