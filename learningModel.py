@@ -3,6 +3,7 @@ import pandas  as pd
 import tensorflow as tf
 import tfNeuralNetGATTI as gatti
 import HRBProbes
+from datetime import datetime
 from sklearn.model_selection import train_test_split
 
 import matplotlib
@@ -137,7 +138,7 @@ class neural_networks:
         print("LF LES integral RMSE %f" %LF_RMSE)
         print('=====================================================')
         
-        return X_pred*self.X_std+self.X_mean, Cp_NN.numpy(), HF_Cp
+        return X_pred*self.X_std+self.X_mean, Cp_NN.numpy(), HF_Cp, NN_RMSE, LF_RMSE
 
 
     
@@ -346,17 +347,48 @@ datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFid
 
 X_train_dev, X_test, y_train_dev, y_test = datasplit.split_dataset()
 
-# Neural Nets training; touch here for grid search
+    
+with open('Gridsearch' + labels + '.dat', 'a+') as out:
+    now = datetime.now()
+    out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%H:%M:%S"))+ '\n'*10)
         
-layers = [X_train_dev.shape[0],10,10,5,3,1]
+for i in range(1000):
 
-neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
+    # Neural Nets training; touch here for grid search
+    
+    n_hidden_layers = np.round(np.random.uniform(1.0,6.1))
+    
+    layers      = (np.random.randint(12, size = int(n_hidden_layers))+2).tolist()
+    layers.insert(0, X_train_dev.shape[0])
+    layers.append(1)
+    
+    learning_rate = 10**np.random.uniform(-5.0,-1.0)
+    n_epochs    = 501
+    batch_size    = int(2**np.round(np.random.uniform(4.0, 8.1)))
+    
+    # Optimal setup so far
+    # layers = [X_train_dev.shape[0],10,10,5,3,1]
+    # num_epochs = 401
+    # learning_rate = 0.001
+    # batch_size = 128
 
-parameters, costs = neuralNet.fit_neural_network(layers, 0.001, 401, 128)
+    neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
 
-X_pred, Cp_NN, Cp_HF  = neuralNet.predictions_RMSE(False)
+    parameters, costs = neuralNet.fit_neural_network(layers, learning_rate, n_epochs, batch_size)
 
-trainDF = datasplit.read_file([resolution['LF']], angles['HF'])
+    X_pred, Cp_NN, Cp_HF, NN_RMSE, LF_RMSE  = neuralNet.predictions_RMSE(False)
+
+    trainDF = datasplit.read_file([resolution['LF']], angles['HF'])
+    
+    with open('Gridsearch' + labels + '.dat', 'a+') as out:
+        out.write('========================================\n')
+        out.write('Layer dimensions    :   ' + str(layers)+'\n')
+        out.write('Learning rate       : %f\n' %learning_rate)
+        out.write('Number of epochs    : %d\n' %n_epochs)
+        out.write('Minibatch size      : %d\n' %batch_size)
+        out.write("MF NN  integral RMSE: %f\n" %NN_RMSE)
+        out.write("LF LES integral RMSE: %f\n" %LF_RMSE)
+        out.write('========================================\n')
 
 saveToDat(patches, angles['HF'], resolution, variables, labels, trainDF, X_pred, Cp_NN, Cp_HF)
 
