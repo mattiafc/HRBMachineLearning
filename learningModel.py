@@ -5,10 +5,15 @@ import tfNeuralNetGATTI as gatti
 import HRBProbes
 from datetime import datetime
 from sklearn.model_selection import train_test_split
+from joblib         import Parallel, delayed
 
 import matplotlib
 matplotlib.use( 'TkAgg' )
 import matplotlib.pyplot as plt
+
+font = {'size'   : 15}
+
+matplotlib.rc('font', **font)
 
 class neural_networks:
 
@@ -25,20 +30,18 @@ class neural_networks:
     ###   Normalize and split data   ###
     ####################################
     
-    def __init__(self, X_train_dev_nn, X_test_nn, y_train_dev, y_test, variables, labels, learn_delta = False):
+    def __init__(self, X_train_dev_nn, X_test_nn, y_train_dev, y_test, variables, label, learn_delta = False):
         
         #if dataset == ' Standard'
         
         self.areaIdx  = variables.index('Area')
-        self.labelIdx = variables.index(labels)
+        self.labelIdx = variables.index(label)
         
         self.learn_delta = learn_delta
         
         if self.learn_delta == True:
             y_train_dev = y_train_dev - X_train_dev_nn[self.labelIdx,:]
             y_test      = y_train_dev - X_test_nn[self.labelIdx,:]
-        
-        self.layers = layers
         
         self.nFeatures, self.nSamples = X_train_dev_nn.shape
         
@@ -72,7 +75,7 @@ class neural_networks:
     ###  Setup for tf and fit model  ###
     ####################################
         
-    def fit_neural_network(self, layers, learning_rate = 0.001, num_epochs = 401, minibatch_size = 128):
+    def fit_neural_network(self, layers, learning_rate = 0.001, num_epochs = 501, minibatch_size = 128):
         
         self.layers = layers
         
@@ -95,10 +98,10 @@ class neural_networks:
         test_x = tf.data.Dataset.from_tensor_slices(self.X_test.T)
         test_y = tf.data.Dataset.from_tensor_slices(self.y_test.T)
 
-        self.parameters, costs = gatti.model(train_x, train_y, dev_x, dev_y, test_x, test_y, self.layers, self.areaIdx,
-                                        learning_rate, num_epochs, minibatch_size)
+        self.parameters, train_cost, dev_cost, costs_plot = gatti.model(train_x, train_y, dev_x, dev_y, test_x, test_y, 
+                                        self.layers, self.areaIdx, learning_rate, num_epochs, minibatch_size)
         
-        return self.parameters, costs
+        return self.parameters, train_cost, dev_cost, costs_plot
     
     ##########################################
     ###  Make predictions + evaluate RMSE  ###
@@ -287,13 +290,13 @@ def saveToDat(patches, angles, resolution, variables, labels, trainDF, X_pred, C
             NNPred = df[NNEntries].values
             HFPred = df[HFEntries].values
             
-            fNameNN = str('./NNPred/NeuralNet' + str(ang) + pl + '.dat')
-            fNameHF = str('./HFPred/' + resolution['HF'] + str(ang) + pl + '.dat')
+            fNameNN = str('../MachineLearningOutput/NNPred/NeuralNet' + str(ang) + pl + '.dat')
+            fNameHF = str('../MachineLearningOutput/HFPred/' + resolution['HF'] + str(ang) + pl + '.dat')
             
             np.savetxt(fNameNN, NNPred, header = str(NNEntries))
             np.savetxt(fNameHF, HFPred, header = str(HFEntries))
     
-def readDat(patches, angles, deltas, directory = 'probesToDat/'):
+def readDat(patches, angles, deltas, directory = '../MachineLearningOutput/probesToDat'):
 
     roundoff = 12
     probes = {}
@@ -316,19 +319,65 @@ def readDat(patches, angles, deltas, directory = 'probesToDat/'):
     return probes
 
 
+    
+    
+
+def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels):
+
+    np.random.seed(seed)
+    
+    n_hidden_layers = np.random.randint(1, high = 3)
+    
+    layers      = (np.random.randint(50, size = int(n_hidden_layers))+2).tolist()
+    layers.insert(0, X_train_dev.shape[0])
+    layers.append(1)
+    
+    learning_rate = 10**np.random.uniform(-5.0,-2.0)
+    n_epochs    = 501
+    batch_size    = int(2**np.round(np.random.uniform(4.0, 8.1)))
+
+    neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
+
+    parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network(layers, learning_rate, n_epochs, batch_size)
+
+    X_pred, Cp_NN, Cp_HF, NN_RMSE, LF_RMSE  = neuralNet.predictions_RMSE(False)
+
+    trainDF = datasplit.read_file([resolution['LF']], angles['HF'])
+    
+    with open('../MachineLearningOutput/Gridsearch' + labels + '.dat', 'a+') as out:
+        out.write('========================================\n')
+        out.write('Seed number         : %d\n' %seed)
+        out.write('Layer dimensions    : ' + str(layers)+'\n')
+        out.write('Learning rate       : %f\n' %learning_rate)
+        out.write('Number of epochs    : %d\n' %n_epochs)
+        out.write('Minibatch size      : %d\n' %batch_size)
+        out.write("MF NN  integral RMSE: %f\n" %NN_RMSE)
+        out.write("LF LES integral RMSE: %f\n" %LF_RMSE)
+        out.write("Train/dev       RMSE: %f, %f\n" %(train_cost, dev_cost))
+        out.write('========================================\n')
+    
+    costs_plot = np.asarray(costs_plot)
+    plt.plot(costs_plot[:,2], costs_plot[:,0], label = 'Train')
+    plt.plot(costs_plot[:,2], costs_plot[:,1], label = 'Dev')
+    plt.xlabel('# of Epochs')
+    plt.ylabel('Cost')
+    plt.title('Label: %s, Seed: %d' %(labels, seed))
+    plt.legend(frameon=False)
+    plt.savefig('../MachineLearningOutput/Plots/Costs/Label:%s,Seed:%d.png' %(labels, seed))
+    plt.close()
+    #plt.plot(np.squeeze(lastStep[-2:-1]-t0)*tStep*np.ones(y.shape),y,color='lime',linewidth = 2.0)
+    
+    return
+
 
 ##########################################################
 ########                 CODE BODY                ########
 ##########################################################
 
-
-
-np.random.seed(3)
-
 angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,20,40,60,80]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
 variables  = ['CfMean','TKE','U','gradP','UDotN','theta','meanCp','rmsCp','peakminCp','peakMaxCp','Area']
-labels     = 'rmsCp'
+labels     = 'peakminCp'
 
 patches = {'F':'front','L':'leeward','R':'rear','T':'top','W':'windward'}
 
@@ -348,59 +397,45 @@ datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFid
 X_train_dev, X_test, y_train_dev, y_test = datasplit.split_dataset()
 
     
-with open('Gridsearch' + labels + '.dat', 'a+') as out:
+with open('../MachineLearningOutput/Gridsearch' + labels + '.dat', 'a+') as out:
     now = datetime.now()
-    out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%H:%M:%S"))+ '\n'*10)
-        
-for i in range(1000):
-
-    # Neural Nets training; touch here for grid search
+    out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
     
-    n_hidden_layers = np.round(np.random.uniform(1.0,6.1))
-    
-    layers      = (np.random.randint(12, size = int(n_hidden_layers))+2).tolist()
-    layers.insert(0, X_train_dev.shape[0])
-    layers.append(1)
-    
-    learning_rate = 10**np.random.uniform(-5.0,-1.0)
-    n_epochs    = 501
-    batch_size    = int(2**np.round(np.random.uniform(4.0, 8.1)))
-    
-    # Optimal setup so far
-    # layers = [X_train_dev.shape[0],10,10,5,3,1]
-    # num_epochs = 401
-    # learning_rate = 0.001
-    # batch_size = 128
+_ = Parallel(n_jobs= 12)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
+                            for seed in range(100,1000))
 
-    neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
+#np.random.seed(seed)
 
-    parameters, costs = neuralNet.fit_neural_network(layers, learning_rate, n_epochs, batch_size)
+#n_hidden_layers = np.round(np.random.uniform(1.0,6.1))
 
-    X_pred, Cp_NN, Cp_HF, NN_RMSE, LF_RMSE  = neuralNet.predictions_RMSE(False)
+#layers      = (np.random.randint(12, size = int(n_hidden_layers))+2).tolist()
+#layers.insert(0, X_train_dev.shape[0])
+#layers.append(1)
 
-    trainDF = datasplit.read_file([resolution['LF']], angles['HF'])
-    
-    with open('Gridsearch' + labels + '.dat', 'a+') as out:
-        out.write('========================================\n')
-        out.write('Layer dimensions    :   ' + str(layers)+'\n')
-        out.write('Learning rate       : %f\n' %learning_rate)
-        out.write('Number of epochs    : %d\n' %n_epochs)
-        out.write('Minibatch size      : %d\n' %batch_size)
-        out.write("MF NN  integral RMSE: %f\n" %NN_RMSE)
-        out.write("LF LES integral RMSE: %f\n" %LF_RMSE)
-        out.write('========================================\n')
+#learning_rate = 10**np.random.uniform(-5.0,-2.0)
+#n_epochs    = 11
+##batch_size    = int(2**np.round(np.random.uniform(4.0, 8.1)))
+#batch_size    = 256
 
-saveToDat(patches, angles['HF'], resolution, variables, labels, trainDF, X_pred, Cp_NN, Cp_HF)
+#neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
 
-# Neural nets has been fitted, used to predict, and the output has been saved into a .dat 
+#parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network(layers, learning_rate, n_epochs, batch_size)
+
+#X_pred, Cp_NN, Cp_HF, NN_RMSE, LF_RMSE  = neuralNet.predictions_RMSE(False)
+
+#trainDF = datasplit.read_file([resolution['LF']], angles['HF'])
+
+#saveToDat(patches, angles['HF'], resolution, variables, labels, trainDF, X_pred, Cp_NN, Cp_HF)
+
+##Neural nets has been fitted, used to predict, and the output has been saved into a .dat 
      
-for ang in angles['HF']:
+#for ang in angles['HF']:
 
-    probes = readDat(patches, [ang], ['NeuralNet'], directory = 'NNPred/')
-    HRBProbes.plotQty(probes, ['NeuralNet'], [ang], patches, [labels], CpScale[str(ang)], directory = './Plots/', resCompare = False)
+    #probes = readDat(patches, [ang], ['NeuralNet'], directory = '../MachineLearningOutput/NNPred/')
+    #HRBProbes.plotQty(probes, ['NeuralNet'], [ang], patches, [labels], CpScale[str(ang)], directory = '../MachineLearningOutput/Plots/', resCompare = False)
 
-    probes = readDat(patches, [ang], [resolution['HF']], directory = 'HFPred/')
-    HRBProbes.plotQty(probes, [resolution['HF']], [ang], patches, [labels], CpScale[str(ang)], directory = './Plots/', resCompare = False)
+    #probes = readDat(patches, [ang], [resolution['HF']], directory = 'HFPred/')
+    #HRBProbes.plotQty(probes, [resolution['HF']], [ang], patches, [labels], CpScale[str(ang)], directory = '../MachineLearningOutput/Plots/', resCompare = False)
 
 
 

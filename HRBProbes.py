@@ -4,7 +4,7 @@ import numpy           as np
 import multiprocessing as mp
 
 from joblib         import Parallel, delayed
-from scipy.signal   import welch, hanning
+#from scipy.signal   import welch, hanning
 from scipy.optimize import curve_fit
 from scipy.stats    import pearsonr
 
