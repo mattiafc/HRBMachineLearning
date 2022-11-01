@@ -45,19 +45,16 @@ def forward_propagation(X, parameters, layers):
         Z = tf.add(tf.matmul(parameters['W' + str(l)], A), parameters['b' + str(l)])
         A = tf.keras.activations.tanh(Z)
         
-        
         #assert(A.shape[0] == parameters['b' + str(l)].shape[0])
         #assert(A.shape[1] == X.shape[1])
         #assert(A.shape == Z.shape)
     
     Z = tf.add(tf.matmul(parameters['W' + str(L)], A), parameters['b' + str(L)])
     A = tf.keras.activations.tanh(Z)
-        
-        
+           
     #assert(A.shape[0] == parameters['b' + str(L)].shape[0])
     #assert(A.shape[1] == X.shape[1])
-    #assert(A.shape == Z.shape)
-    
+    #assert(A.shape == Z.shape) 
     
     return parameters, A
 
@@ -105,9 +102,6 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
     dev_minibatches   = dev_dataset.batch(dev_size).prefetch(8)
     test_minibatches  = test_dataset.batch(test_size).prefetch(8)
     
-    #X_train = X_train.batch(minibatch_size, drop_remainder=True).prefetch(8)# <<< extra step    
-    #Y_train = Y_train.batch(minibatch_size, drop_remainder=True).prefetch(8) # loads memory faster
-    
     # Training loop
     
     for epoch in range(num_epochs):
@@ -125,6 +119,8 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
             
             trainable_variables = train_vars
             grads = tape.gradient(minibatch_cost, trainable_variables)
+            print('Start of the thing')
+            print(grads)
             optimizer.apply_gradients(zip(grads, trainable_variables))
             train_cost += minibatch_cost
             
