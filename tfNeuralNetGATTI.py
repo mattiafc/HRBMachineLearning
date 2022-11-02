@@ -4,6 +4,15 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import tensorflow as tf
+
+import matplotlib
+matplotlib.use( 'TkAgg' )
+import matplotlib.pyplot as plt
+
+font = {'size'   : 15}
+
+matplotlib.rc('font', **font)
+
 np.random.seed(2)
 
 def initialize_parameters(layers):
@@ -58,6 +67,37 @@ def forward_propagation(X, parameters, layers):
     
     return parameters, A
 
+def weight_statistics(parameters, layers):
+    
+    L = len(layers)
+    mean = [None]*(L-1)
+    std  = [None]*(L-1)
+    
+    for l in range(1, L):
+        
+        mean[l-1] = np.mean(parameters['W' + str(l)].numpy().reshape(-1,1))
+        std[l-1]  = np.std(parameters['W' + str(l)].numpy().reshape(-1,1), ddof = 1)
+        
+    return mean, std
+
+def grads_statistics(gradients, layers):
+    
+    L = len(layers)
+    mean = [None]*(L-1)
+    std  = [None]*(L-1)
+    
+    for l in range(0,(L-1)*2,2):
+        
+        idx = l//2
+        
+        #Check whether or not we're reading the weight gradient
+        assert(gradients[l].numpy().shape == (layers[idx+1], layers[idx]))
+        
+        mean[idx] = np.mean(gradients[l].numpy().reshape(-1,1))
+        std[idx]  = np.std(gradients[l].numpy().reshape(-1,1), ddof = 1)
+        
+    return mean, std
+        
 
 def compute_cost(labels, y_hat, layers, area):
     
@@ -72,7 +112,17 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
     
     # Initalize costs, variables, and optimizer
     
-    parameters = initialize_parameters(layers)    
+    weight_mean = []
+    weight_std  = []
+    grad_mean = []
+    grad_std  = []
+    
+    
+    parameters = initialize_parameters(layers)
+    mean, std = weight_statistics(parameters, layers)
+    
+    weight_mean.append(mean)
+    weight_std.append(std)
     
     train_vars = []
     costs_plot = []
@@ -119,14 +169,19 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
             
             trainable_variables = train_vars
             grads = tape.gradient(minibatch_cost, trainable_variables)
-            print('Start of the thing')
-            print(grads)
             optimizer.apply_gradients(zip(grads, trainable_variables))
             train_cost += minibatch_cost
             
+            mean, std = weight_statistics(parameters, layers)
+            weight_mean.append(mean)
+            weight_std.append(std)
+            
+            mean_grad, std_grad = grads_statistics(grads, layers)
+            grad_mean.append(mean_grad)
+            grad_std.append(std_grad)
+            
         train_cost /= nBatches
-        
-        
+            
         # Print the cost every 10 epochs
         if epoch % 10 == 0:
             print ("Cost after epoch %i: %f" % (epoch, train_cost))
@@ -139,6 +194,38 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
             print("Dev cost %f" %dev_cost)
 
             costs_plot.append([train_cost, dev_cost, epoch])
+            
+    #Plot the gradients and weights evolution
+            
+    x      = np.tile(np.arange(len(weight_mean)),(len(layers)-1,1)).T/nBatches
+    x_grad = np.tile(1+np.arange(len(weight_mean)-1),(len(layers)-1,1)).T/nBatches
+    
+    
+    plt.figure(1, figsize = (10,8))
+    alpha = 0.45
+    
+    plt.subplot(2,2,1)
+    plt.plot(x, weight_mean)
+    plt.xlabel('# of Epochs')
+    plt.ylabel('Mean value')
+    plt.title('Weight')
+    
+    plt.subplot(2,2,3)
+    plt.plot(x, weight_std)
+    plt.xlabel('# of Epochs')
+    plt.ylabel('Standard Deviation')
+    
+    plt.subplot(2,2,2)
+    plt.plot(x_grad, grad_mean, alpha = alpha)
+    plt.xlabel('# of Epochs')
+    plt.title('Gradients')
+    
+    plt.subplot(2,2,4)
+    plt.plot(x_grad, grad_std, alpha = alpha)
+    plt.xlabel('# of Epochs')
+    plt.legend(['Layer ' + str(n+1) for n in range(len(layers))],frameon=False)
+    plt.savefig('../MachineLearningOutput/Plots/WeightAndGrad/Setup:' + str(layers) + 'alpha'+ str(alpha) + '.png')
+    plt.close()
     
     # Verify and report the effectve dev and train cost
     

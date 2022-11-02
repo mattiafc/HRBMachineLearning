@@ -39,23 +39,26 @@ class neural_networks:
         
         self.learn_delta = learn_delta
         
-        if self.learn_delta == True:
-            y_train_dev = y_train_dev - X_train_dev_nn[self.labelIdx,:]
-            y_test      = y_train_dev - X_test_nn[self.labelIdx,:]
+        #if self.learn_delta == True:
+            #y_train_dev = y_train_dev - X_train_dev_nn[self.labelIdx,:]
+            #y_test      = y_train_dev - X_test_nn[self.labelIdx,:]
         
         self.nFeatures, self.nSamples = X_train_dev_nn.shape
         
         self.X_mean = np.mean(X_train_dev_nn, axis = 1, keepdims = True)
         self.X_std  = np.std(X_train_dev_nn,  axis = 1, keepdims = True, ddof = 1)+1e-10
         
+        #self.y_mean = np.mean(y_train_dev, axis = 1, keepdims = True)
+        #self.y_std  = np.std(y_train_dev,  axis = 1, keepdims = True, ddof = 1)+1e-10
+        
         self.X_mean[self.areaIdx] = 0.0
         self.X_std[self.areaIdx]  = 1.0
         
         self.X_train_dev = (X_train_dev_nn - self.X_mean)/self.X_std
-        self.y_train_dev = y_train_dev
+        self.y_train_dev = (y_train_dev - self.y_mean)/self.y_std
         
         self.X_test = (X_test_nn  - self.X_mean)/self.X_std
-        self.y_test = y_test
+        self.y_test = (y_train_dev - self.y_mean)/self.y_std
         
         
         self.X_train, self.X_dev, self.y_train, self.y_dev = self.train_dev_split(self.X_train_dev.T, self.y_train_dev.T)
@@ -110,8 +113,8 @@ class neural_networks:
     def predictions_RMSE(self, test = False):
     
         if test == True:
-            X_pred = np.vstack((self.X_train_dev.T, self.X_train.T)).T
-            HF_Cp  = np.vstack((self.y_train_dev.T, self.y_train.T)).T
+            X_pred = np.vstack((self.X_train_dev.T, self.X_test.T)).T
+            HF_Cp  = np.vstack((self.y_train_dev.T, self.y_test.T)).T
         else:
             X_pred = self.X_train_dev
             HF_Cp  = self.y_train_dev
@@ -132,7 +135,8 @@ class neural_networks:
             
             # Compute LF error (de-normalize data + RMSE computation)
             y_LF = tf.gather(X, self.labelIdx, axis=1)*self.X_std[self.labelIdx] + self.X_mean[self.labelIdx]
-            LF_RMSE  = gatti.compute_cost(tf.transpose(y), y_LF, self.layers, tf.gather(X, self.areaIdx, axis=1))
+            LF_RMSE  = gatti.compute_cost(tf.transpose(y), (y_LF-self.y_mean)/self.y_std, 
+                                          self.layers, tf.gather(X, self.areaIdx, axis=1))
         
         print('=====================================================')
         print('RMSE comparison MF Neural Net vs LF LES over test_dev')
@@ -326,18 +330,15 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
 
     np.random.seed(seed)
     
-    n_hidden_layers = np.random.randint(1, high = 3)
+    n_hidden_layers = np.random.randint(1, high = 6)
     
     layers      = (np.random.randint(15, size = int(n_hidden_layers))+2).tolist()
     layers.insert(0, X_train_dev.shape[0])
     layers.append(1)
     
-    layers = [11,8,3,1]
-    
     learning_rate = 10**np.random.uniform(-5.0,-2.0)
-    n_epochs    = 501
+    n_epochs    = 701
     batch_size    = int(2**np.round(np.random.uniform(4.0, 8.1)))
-    batch_size    = 0
 
     neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
 
@@ -380,7 +381,7 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
 angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,20,40,60,80]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
 variables  = ['CfMean','TKE','U','gradP','UDotN','theta','meanCp','rmsCp','peakminCp','peakMaxCp','Area']
-labels     = 'peakminCp'
+labels     = 'rmsCp'
 
 patches = {'F':'front','L':'leeward','R':'rear','T':'top','W':'windward'}
 
@@ -400,11 +401,11 @@ datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFid
 X_train_dev, X_test, y_train_dev, y_test = datasplit.split_dataset()
 
     
-with open('../MachineLearningOutput/Gridsearch' + labels + '.dat', 'a+') as out:
-    now = datetime.now()
-    out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
+#with open('../MachineLearningOutput/Gridsearch' + labels + '.dat', 'a+') as out:
+    #now = datetime.now()
+    #out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
     
-_ = Parallel(n_jobs= 1)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
+_ = Parallel(n_jobs= 12)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
                             for seed in range(100,1000))
 
 #np.random.seed(seed)
