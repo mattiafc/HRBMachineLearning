@@ -221,11 +221,9 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
     plt.title('Gradients')
     
     plt.subplot(2,2,4)
-    plt.plot(x_grad, grad_std, alpha = alpha)
+    plt.semilogy(x_grad, grad_std, alpha = alpha)
     plt.xlabel('# of Epochs')
     plt.legend(['Layer ' + str(n+1) for n in range(len(layers))],frameon=False)
-    plt.savefig('../MachineLearningOutput/Plots/WeightAndGrad/Setup:' + str(layers) + 'alpha'+ str(alpha) + '.png')
-    plt.close()
     
     # Verify and report the effectve dev and train cost
     
