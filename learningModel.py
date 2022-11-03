@@ -337,7 +337,7 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
     layers.append(1)
     
     learning_rate = 10**np.random.uniform(-5.0,-2.0)
-    n_epochs    = 21
+    n_epochs    = 701
     batch_size    = int(2**np.round(np.random.uniform(4.0, 8.1)))
 
     neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
@@ -409,7 +409,7 @@ with open('../MachineLearningOutput/Gridsearch' + labels + '.dat', 'a+') as out:
     out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
     
 _ = Parallel(n_jobs= 12)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
-                            for seed in range(0,1000))
+                            for seed in range(180,1000))
 
 #np.random.seed(seed)
 
