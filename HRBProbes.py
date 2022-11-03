@@ -8,6 +8,7 @@ from joblib         import Parallel, delayed
 from scipy.optimize import curve_fit
 from scipy.stats    import pearsonr
 
+
 import matplotlib
 matplotlib.use( 'TkAgg' )
 import matplotlib.pyplot as plt
