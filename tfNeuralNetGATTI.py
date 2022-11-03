@@ -9,6 +9,8 @@ import matplotlib
 matplotlib.use( 'TkAgg' )
 import matplotlib.pyplot as plt
 
+from scipy.signal import convolve2d
+
 font = {'size'   : 15}
 
 matplotlib.rc('font', **font)
@@ -197,12 +199,22 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
             print("Dev cost %f" %dev_cost)
 
             costs_plot.append([train_cost, dev_cost, epoch])
+    
+    N = 20
             
-    #Plot the gradients and weights evolution
+    weight_mean = convolve2d(weight_mean, np.ones((N,1))/N, boundary='symm')
+    weight_std  = convolve2d(weight_std, np.ones((N,1))/N, boundary='symm')
             
+    linear_mean = convolve2d(linear_mean, np.ones((N,1))/N, boundary='symm')
+    linear_std  = convolve2d(linear_std, np.ones((N,1))/N, boundary='symm')
+    
+    grad_mean = convolve2d(grad_mean, np.ones((N,1))/N, boundary='symm')
+    grad_std  = convolve2d(grad_std, np.ones((N,1))/N, boundary='symm')
+    
     x = np.tile(np.arange(len(weight_mean)),(len(layers)-1,1)).T/nBatches
     
     plt.figure(1, figsize = (16,10))
+    plt.suptitle('Moving average with window of size %d' %N)
     alpha = 0.45
     
     plt.subplot(2,3,1)

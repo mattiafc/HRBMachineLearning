@@ -349,7 +349,7 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
     layers.append(1)
     
     learning_rate = 10**np.random.uniform(-5.0,-2.0)
-    n_epochs    = 701
+    n_epochs      = 701
     batch_size    = int(2**np.round(np.random.uniform(4.0, 8.1)))
 
     neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
@@ -357,6 +357,7 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
     parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network(layers, learning_rate, n_epochs, batch_size)
     
     plt.savefig('../MachineLearningOutput/Plots/WeightAndGrad/Label:%s,Seed:%d.png' %(labels, seed))
+    plt.show(block = True)
     plt.close()
 
     X_pred, Cp_NN, Cp_HF, NN_RMSE, LF_RMSE  = neuralNet.predictions_RMSE(False)
