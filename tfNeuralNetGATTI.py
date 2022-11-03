@@ -59,7 +59,8 @@ def forward_propagation(X, parameters, layers):
         #assert(A.shape == Z.shape)
     
     parameters['Z' + str(L)] = tf.add(tf.matmul(parameters['W' + str(L)], A), parameters['b' + str(L)])
-    A = tf.keras.activations.tanh(parameters['Z' + str(L)])
+    #A = tf.keras.activations.tanh(parameters['Z' + str(L)])
+    A = parameters['Z' + str(L)]
            
     #assert(A.shape[0] == parameters['b' + str(L)].shape[0])
     #assert(A.shape[1] == X.shape[1])
@@ -67,7 +68,7 @@ def forward_propagation(X, parameters, layers):
     
     return parameters, A
 
-def weight_statistics(parameters, layers):
+def weight_statistics(parameters, layers, code):
     
     L = len(layers)
     mean = [None]*(L-1)
@@ -75,8 +76,8 @@ def weight_statistics(parameters, layers):
     
     for l in range(1, L):
         
-        mean[l-1] = np.mean(parameters['Z' + str(l)].numpy().reshape(-1,1))
-        std[l-1]  = np.std(parameters['Z' + str(l)].numpy().reshape(-1,1), ddof = 1)
+        mean[l-1] = np.mean(parameters[code + str(l)].numpy().reshape(-1,1))
+        std[l-1]  = np.std(parameters[code + str(l)].numpy().reshape(-1,1), ddof = 1)
         
     return mean, std
 
@@ -114,6 +115,8 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
     
     weight_mean = []
     weight_std  = []
+    linear_mean = []
+    linear_std  = []
     grad_mean = []
     grad_std  = []
     
@@ -168,13 +171,17 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
             optimizer.apply_gradients(zip(grads, trainable_variables))
             train_cost += minibatch_cost
             
-            mean, std = weight_statistics(parameters, layers)
+            mean, std = weight_statistics(parameters, layers, 'W')
             weight_mean.append(mean)
             weight_std.append(std)
             
-            mean_grad, std_grad = grads_statistics(grads, layers)
-            grad_mean.append(mean_grad)
-            grad_std.append(std_grad)
+            mean, std = weight_statistics(parameters, layers, 'Z')
+            linear_mean.append(mean)
+            linear_std.append(std)
+            
+            mean, std = grads_statistics(grads, layers)
+            grad_mean.append(mean)
+            grad_std.append(std)
             
         train_cost /= nBatches
             
@@ -193,28 +200,37 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
             
     #Plot the gradients and weights evolution
             
-    x      = np.tile(np.arange(len(weight_mean)),(len(layers)-1,1)).T/nBatches
+    x = np.tile(np.arange(len(weight_mean)),(len(layers)-1,1)).T/nBatches
     
-    plt.figure(1, figsize = (10,8))
+    plt.figure(1, figsize = (16,10))
     alpha = 0.45
     
-    plt.subplot(2,2,1)
+    plt.subplot(2,3,1)
     plt.plot(x, weight_mean)
     plt.xlabel('# of Epochs')
     plt.ylabel('Mean value')
-    plt.title('Linear activation (Z)')
+    plt.title('Weight')
     
-    plt.subplot(2,2,3)
+    plt.subplot(2,3,4)
     plt.plot(x, weight_std)
     plt.xlabel('# of Epochs')
     plt.ylabel('Standard Deviation')
     
-    plt.subplot(2,2,2)
+    plt.subplot(2,3,2)
+    plt.plot(x, linear_mean)
+    plt.xlabel('# of Epochs')
+    plt.title('Linear function')
+    
+    plt.subplot(2,3,5)
+    plt.plot(x, linear_std)
+    plt.xlabel('# of Epochs')
+    
+    plt.subplot(2,3,3)
     plt.plot(x, grad_mean, alpha = alpha)
     plt.xlabel('# of Epochs')
     plt.title('Gradients of W')
     
-    plt.subplot(2,2,4)
+    plt.subplot(2,3,6)
     plt.semilogy(x, grad_std, alpha = alpha)
     plt.xlabel('# of Epochs')
     plt.legend(['Layer ' + str(n+1) for n in range(len(layers))],frameon=False)

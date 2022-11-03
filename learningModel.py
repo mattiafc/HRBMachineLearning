@@ -330,7 +330,19 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
 
     np.random.seed(seed)
     
-    n_hidden_layers = np.random.randint(1, high = 6)
+    #### Rms setup ###
+    
+    #n_hidden_layers = np.random.randint(1, high = 6)
+    
+    #layers      = (np.random.randint(15, size = int(n_hidden_layers))+2).tolist()
+    #layers.insert(0, X_train_dev.shape[0])
+    #layers.append(1)
+    
+    #learning_rate = 10**np.random.uniform(-5.0,-2.0)
+    #n_epochs    = 701
+    #batch_size    = int(2**np.round(np.random.uniform(4.0, 8.1)))
+    
+    n_hidden_layers = np.random.randint(1, high = 7)
     
     layers      = (np.random.randint(15, size = int(n_hidden_layers))+2).tolist()
     layers.insert(0, X_train_dev.shape[0])
@@ -384,7 +396,7 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
 angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,20,40,60,80]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
 variables  = ['CfMean','TKE','U','gradP','UDotN','theta','meanCp','rmsCp','peakminCp','peakMaxCp','Area']
-labels     = 'rmsCp'
+labels     = 'peakminCp'
 
 patches = {'F':'front','L':'leeward','R':'rear','T':'top','W':'windward'}
 
@@ -409,7 +421,7 @@ with open('../MachineLearningOutput/Gridsearch' + labels + '.dat', 'a+') as out:
     out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
     
 _ = Parallel(n_jobs= 12)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
-                            for seed in range(180,1000))
+                            for seed in range(0,1000))
 
 #np.random.seed(seed)
 
