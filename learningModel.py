@@ -396,7 +396,7 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
 angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,20,40,60,80]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
 variables  = ['CfMean','TKE','U','gradP','UDotN','theta','meanCp','rmsCp','peakminCp','peakMaxCp','Area']
-labels     = 'peakminCp'
+labels     = 'meanCp'
 
 patches = {'F':'front','L':'leeward','R':'rear','T':'top','W':'windward'}
 
@@ -421,7 +421,7 @@ with open('../MachineLearningOutput/Gridsearch' + labels + '.dat', 'a+') as out:
     out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
     
 _ = Parallel(n_jobs= 12)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
-                            for seed in range(0,1000))
+                            for seed in range(435,1000))
 
 #np.random.seed(seed)
 
