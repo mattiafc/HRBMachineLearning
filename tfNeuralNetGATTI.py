@@ -200,6 +200,12 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
 
             costs_plot.append([train_cost, dev_cost, epoch])
     
+    
+    #for (test_minibatch_X, test_minibatch_Y) in test_minibatches:
+            
+        #_, y_hat_test = forward_propagation(tf.transpose(test_minibatch_X),  parameters, layers)
+        #test_cost  = compute_cost(tf.transpose(test_minibatch_Y), y_hat_test, layers, tf.gather(test_minibatch_X, areaIdx, axis=1))
+        
     N = 20
             
     weight_mean = convolve2d(weight_mean, np.ones((N,1))/N, boundary='symm')

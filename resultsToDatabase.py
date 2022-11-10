@@ -3,7 +3,7 @@ import pandas as pd
 import re
 
 quantities = ['meanCp','rmsCp','peakMaxCp','peakminCp']
-sortCriteria = 'Train RMSE'
+sortCriteria = 'Dev RMSE'
 
 for qty in quantities:
 
@@ -49,6 +49,6 @@ for qty in quantities:
     
     print("===============================================================================================================")
     print("Best setup for " + str(qty) + ' sorted by ' + sortCriteria + '\n')
-    temp = df.head(n=15)
+    temp = df.head(n=5)
     print(temp)
     print("\n===============================================================================================================")
