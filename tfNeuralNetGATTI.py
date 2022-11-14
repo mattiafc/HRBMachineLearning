@@ -158,6 +158,7 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers, areaIdx,
     for epoch in range(num_epochs):
         
         train_cost = 0.
+        train_minibatches = train_dataset.shuffle(train_size, seed = epoch).batch(minibatch_size)
         
         for (minibatch_X, minibatch_Y) in train_minibatches:
             
