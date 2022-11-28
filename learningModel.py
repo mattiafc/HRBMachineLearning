@@ -5,6 +5,7 @@ import tfNeuralNetGATTI as gatti
 import HRBProbes
 from datetime import datetime
 from sklearn.model_selection import train_test_split
+import sys
 
 from scipy          import optimize
 from scipy.optimize import minimize
@@ -19,6 +20,7 @@ import matplotlib.pyplot as plt
 font = {'size'   : 15}
 
 matplotlib.rc('font', **font)
+
 
 class neural_networks:
 
@@ -35,7 +37,7 @@ class neural_networks:
     ###   Normalize and split data   ###
     ####################################
     
-    def __init__(self, X_train_dev_nn, X_test_nn, y_train_dev, y_test, variables, label, learn_delta = False):
+    def __init__(self, X_train_dev_nn, X_test_nn, y_train_dev, y_test, variables, label, learn_delta = True):
         
         #if dataset == ' Standard'
         
@@ -142,14 +144,28 @@ class neural_networks:
             given_bacth   = given_dataset.batch(nGiven).prefetch(8)
             
             for (X, y) in given_bacth:
+
+                if self.learn_delta == True:
+                    # Compute MF error (de-normalize data + RMSE computation)
+                    _, given_Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
+                    #Add DeltaCp to LF
+                    Cp_NN = tf.add(Cp_NN, X)
+                    given_NN_RMSE  = gatti.compute_cost(tf.transpose(y), given_Cp_NN, self.layers, tf.gather(X, self.areaIdx, axis=1))
+                                     
                 
-                # Compute MF error (de-normalize data + RMSE computation)
-                _, given_Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
-                given_NN_RMSE  = gatti.compute_cost(tf.transpose(y), given_Cp_NN, self.layers, tf.gather(X, self.areaIdx, axis=1))
+                    # Compute LF error (de-normalize data + RMSE computation)
+                    given_y_LF     = tf.gather(X, self.labelIdx, axis=1)*self.X_std[self.labelIdx] + self.X_mean[self.labelIdx]
+                    given_LF_RMSE  = gatti.compute_cost(tf.transpose(y), (given_y_LF-self.y_mean)/self.y_std, 
+                                            self.layers, tf.gather(X, self.areaIdx, axis=1))
+
+                else:
+                    # Compute MF error (de-normalize data + RMSE computation)
+                    _, given_Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
+                    given_NN_RMSE  = gatti.compute_cost(tf.transpose(y), given_Cp_NN, self.layers, tf.gather(X, self.areaIdx, axis=1))
                 
-                # Compute LF error (de-normalize data + RMSE computation)
-                given_y_LF     = tf.gather(X, self.labelIdx, axis=1)*self.X_std[self.labelIdx] + self.X_mean[self.labelIdx]
-                given_LF_RMSE  = gatti.compute_cost(tf.transpose(y), (given_y_LF-self.y_mean)/self.y_std, 
+                    # Compute LF error (de-normalize data + RMSE computation)
+                    given_y_LF     = tf.gather(X, self.labelIdx, axis=1)*self.X_std[self.labelIdx] + self.X_mean[self.labelIdx]
+                    given_LF_RMSE  = gatti.compute_cost(tf.transpose(y), (given_y_LF-self.y_mean)/self.y_std, 
                                             self.layers, tf.gather(X, self.areaIdx, axis=1))
             if s == 'Train':
                 train_NN_RMSE = given_NN_RMSE
@@ -166,6 +182,7 @@ class neural_networks:
         
         
         # Second: Compute the ensebmle RMSE
+        # Themis: ADD deltaCp here, too?
     
         if test == True:
             X_pred = np.vstack((self.X_train_dev.T, self.X_test.T)).T
@@ -184,13 +201,26 @@ class neural_networks:
         
         for (X, y) in pred_bacth:
             
-            # Compute MF error (de-normalize data + RMSE computation)
-            _, Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
-            NN_RMSE  = gatti.compute_cost(tf.transpose(y), Cp_NN, self.layers, tf.gather(X, self.areaIdx, axis=1))
+            #Need to add the LF data and then calculate direct RMSE    
+            if self.learn_delta == True:
+                # Compute MF error (de-normalize data + RMSE computation)
+                _, Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
+                #Add DeltaCp to LF
+                Cp_NN = tf.add(Cp_NN, X)
+                NN_RMSE  = gatti.compute_cost(tf.transpose(y), Cp_NN, self.layers, tf.gather(X, self.areaIdx, axis=1))
             
-            # Compute LF error (de-normalize data + RMSE computation)
-            y_LF = tf.gather(X, self.labelIdx, axis=1)*self.X_std[self.labelIdx] + self.X_mean[self.labelIdx]
-            LF_RMSE  = gatti.compute_cost(tf.transpose(y), (y_LF-self.y_mean)/self.y_std, 
+                # Compute LF error (de-normalize data + RMSE computation)
+                y_LF = tf.gather(X, self.labelIdx, axis=1)*self.X_std[self.labelIdx] + self.X_mean[self.labelIdx]
+                LF_RMSE  = gatti.compute_cost(tf.transpose(y), (y_LF-self.y_mean)/self.y_std, 
+                                          self.layers, tf.gather(X, self.areaIdx, axis=1))
+            else:         
+                # Compute MF error (de-normalize data + RMSE computation)
+                _, Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
+                NN_RMSE  = gatti.compute_cost(tf.transpose(y), Cp_NN, self.layers, tf.gather(X, self.areaIdx, axis=1))
+            
+                # Compute LF error (de-normalize data + RMSE computation)
+                y_LF = tf.gather(X, self.labelIdx, axis=1)*self.X_std[self.labelIdx] + self.X_mean[self.labelIdx]
+                LF_RMSE  = gatti.compute_cost(tf.transpose(y), (y_LF-self.y_mean)/self.y_std, 
                                           self.layers, tf.gather(X, self.areaIdx, axis=1))
                 
         print('=====================================================')
@@ -276,6 +306,44 @@ class preprocess_features:
             testAngles = np.sort(list(set(self.angles['LF']) - set(self.angles['HF'])))
             testDF     = self.read_file([self.resolutions['LF']], testAngles)
             testLabels = self.read_file([self.resolutions['HF']], testAngles)
+
+            X_train = trainDF[variables].values.T
+            y_train = (trainLabels[labels].values).reshape(1,-1)
+
+            X_test = testDF[variables].values.T
+            y_test = (testLabels[labels].values).reshape(1,-1)
+
+        elif self.dataset == 'MultiFidelity-deltaCp':
+            
+            """
+            Train set: 
+                - data from LF and HF model @ HF angles
+                - label-deltaCp from HF model @ HF angles
+            """
+            trainDF1     = self.read_file([self.resolutions['LF']], self.angles['HF']) #Get LF data on HF angles
+            trainDF2     = self.read_file([self.resolutions['HF']], self.angles['HF']) #Get HF data on HF angles
+            trainDF      = trainDF1.merge(trainDF2, how='outer') #Concatenate LF and HF: size([LF ; HF]) = (12, 2*samples ) 
+            
+            trainLabels = trainDF2.subtract(trainDF1) # Get deltaCp
+            trainLabels = trainLabels.merge(trainDF2*0, how='outer') # 
+            
+            
+#            trainLabels = self.read_file([self.resolutions['HF']], self.angles['HF'])
+            
+            
+            """
+            Test set: 
+                - data from LF model @ withheld (test) angles
+                - label from HF model @ withheld (test) angles
+            """
+            testAngles = np.sort(list(set(self.angles['LF']) - set(self.angles['HF'])))
+            testDF1     = self.read_file([self.resolutions['LF']], testAngles)
+            testDF2     = self.read_file([self.resolutions['HF']], testAngles)
+            testDF      = trainDF1.merge(trainDF2, how='outer')
+            
+            testLabels = testDF2.subtract(testDF1)
+            testLabels = testLabels.merge(testLabels*0, how='outer')
+            
 
             X_train = trainDF[variables].values.T
             y_train = (trainLabels[labels].values).reshape(1,-1)
@@ -534,22 +602,23 @@ CpScale = {'0' :{'meanCp': [-1.2, 1.0],'rmsCp': [0, 0.36],'peakMaxCp': [-0.5, 1.
            '80':{'meanCp': [-1.0, 1.0],'rmsCp': [0, 0.35],'peakMaxCp': [-0.3, 1.5],'peakminCp': [-2.5, 0.5]},
            '90':{'meanCp': [-1.0, 1.0],'rmsCp': [0, 0.30],'peakMaxCp': [-0.3 ,1.5],'peakminCp': [-2.0, 0.5]}}
 
-datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
+datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity-deltaCp')
 
 X_train_dev, X_test, y_train_dev, y_test = datasplit.split_dataset()
 
-    
-#with open('../MachineLearningOutput/Gridsearch' + labels + '.dat', 'a+') as out:
-    #now = datetime.now()
-    #out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
-    
-#_ = Parallel(n_jobs= 1)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
-                            #for seed in range(435,1000))
+sys.stdout = open('./1', 'w')
 
-#bounds = [(-2,-4),(4.51,7.49),(3.51,16.49), (3.51,8.49)]
-#res = optimize.differential_evolution(optimizer_wrap, bounds, args = (X_train_dev, X_test, y_train_dev, y_test, variables, labels),
-                                      #popsize = 24, seed = 4, workers = 12, integrality = [False, True, True, True])
-#print(res)
+with open('../MachineLearningOutput/Gridsearch' + labels + '.dat', 'a+') as out:
+    now = datetime.now()
+    out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
+    
+_ = Parallel(n_jobs= 12)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
+                            for seed in range(435,1000))
+
+bounds = [(-2,-4),(4.51,7.49),(3.51,16.49), (3.51,8.49)]
+res = optimize.differential_evolution(optimizer_wrap, bounds, args = (X_train_dev, X_test, y_train_dev, y_test, variables, labels),
+                                      popsize = 24, seed = 4, workers = 12, integrality = [False, True, True, True])
+print(res)
 
 test = True
 
@@ -575,6 +644,7 @@ print("Dev   NN/LF     RMSE: %f, %f" %(dev_RMSE[0], dev_RMSE[1]))
 if test == True:
     print("Test    NN/LF     RMSE: %f, %f" %(test_RMSE[0], test_RMSE[1]))
 print('========================================')
+
 
 #X_pred, Cp_NN, Cp_HF, NN_RMSE, LF_RMSE  = neuralNet.predictions_RMSE(True)
 
