@@ -206,7 +206,7 @@ class neural_networks:
                 # Compute MF error (de-normalize data + RMSE computation)
                 _, Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
                 #Add DeltaCp to LF
-                Cp_NN = tf.add(Cp_NN, X)
+                Cp_NN = tf.add(Cp_NN, tf.transpose(X))
                 NN_RMSE  = gatti.compute_cost(tf.transpose(y), Cp_NN, self.layers, tf.gather(X, self.areaIdx, axis=1))
             
                 # Compute LF error (de-normalize data + RMSE computation)
