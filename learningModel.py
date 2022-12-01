@@ -141,10 +141,23 @@ class neural_networks:
             given_bacth   = given_dataset.batch(nGiven).prefetch(8)
             
             for (X, Y) in given_bacth:
+
+            #Need to add the LF data and then calculate direct RMSE    
+                if self.learn_delta == True:
+                    # Compute MF error (de-normalize data + RMSE computation)
+                    _, given_Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
+                    #Add DeltaCp to LF
+                    given_Cp_NN = tf.add(given_Cp_NN, X)
+                    #NN_RMSE  = gatti.compute_cost(tf.transpose(y), Cp_NN, self.layers, tf.gather(X, self.areaIdx, axis=1))
+                    given_NN_RMSE, given_LF_RMSE  = gatti.compute_cost(tf.transpose(X), tf.transpose(Y), given_Cp_NN, tf.gather(X, self.areaIdx, axis=1), self.scaling_factors, self.labelsIdx)
+            
+
+
+                else:                
                 
-                # Compute MF error (de-normalize data + RMSE computation)
-                _, given_Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
-                given_NN_RMSE, given_LF_RMSE  = gatti.compute_cost(tf.transpose(X), tf.transpose(Y), given_Cp_NN, tf.gather(X, self.areaIdx, axis=1), self.scaling_factors, self.labelsIdx)
+                    # Compute MF error (de-normalize data + RMSE computation)
+                    _, given_Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
+                    given_NN_RMSE, given_LF_RMSE  = gatti.compute_cost(tf.transpose(X), tf.transpose(Y), given_Cp_NN, tf.gather(X, self.areaIdx, axis=1), self.scaling_factors, self.labelsIdx)
                 
             if s == 'Train':
                 train_NN_RMSE = given_NN_RMSE
@@ -178,10 +191,20 @@ class neural_networks:
         pred_bacth = pred_dataset.batch(nPoints).prefetch(8)
         
         for (X, Y) in pred_bacth:
-            
-            # Compute MF error (de-normalize data + RMSE computation)
-            _, Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
-            NN_RMSE, LF_RMSE  = gatti.compute_cost(tf.transpose(X), tf.transpose(Y), Cp_NN, tf.gather(X, self.areaIdx, axis=1), self.scaling_factors, self.labelsIdx)
+
+            #Need to add the LF data and then calculate direct RMSE    
+                if self.learn_delta == True:
+                    # Compute MF error (de-normalize data + RMSE computation)
+                    _, Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
+                    #Add DeltaCp to LF
+                    Cp_NN = tf.add(Cp_NN, X)
+                    #NN_RMSE  = gatti.compute_cost(tf.transpose(y), Cp_NN, self.layers, tf.gather(X, self.areaIdx, axis=1))
+                    NN_RMSE, LF_RMSE  = gatti.compute_cost(tf.transpose(X), tf.transpose(Y), Cp_NN, tf.gather(X, self.areaIdx, axis=1), self.scaling_factors, self.labelsIdx)
+
+                else:
+                    # Compute MF error (de-normalize data + RMSE computation)
+                    _, Cp_NN = gatti.forward_propagation(tf.transpose(X), self.parameters, self.layers)
+                    NN_RMSE, LF_RMSE  = gatti.compute_cost(tf.transpose(X), tf.transpose(Y), Cp_NN, tf.gather(X, self.areaIdx, axis=1), self.scaling_factors, self.labelsIdx)
                 
         print('=====================================================')
         print('RMSE comparison MF Neural Net vs LF LES over test_dev')
@@ -237,6 +260,7 @@ class preprocess_features:
         self.dataset     = dataset
 
     def split_dataset(self):
+        subs  = ['CfMean','TKE','gradP','meanCp','rmsCp','peakminCp','peakMaxCp']
         
         if self.dataset == 'Standard':
             
@@ -278,8 +302,9 @@ class preprocess_features:
             
             """
             Train set: 
+                - Use raw LF and HF data at HF angles and predict delta at HF angles (labels)
                 - data from LF model @ HF angles
-                - label from HF model @ HF angles
+                - label (delta) from HF and LF model @ HF angles
             """
             trainDF1     = self.read_file([self.resolutions['LF']], self.angles['HF']) #Get LF data on HF angles
             trainDF2     = self.read_file([self.resolutions['HF']], self.angles['HF']) #Get HF data on HF angles
@@ -301,6 +326,49 @@ class preprocess_features:
 
 
             testLabels = testDF2.subtract(testDF1) #Take deltCp: HF - LF
+            testLabels = testLabels.merge(testLabels*0, how='outer')# concatenate with 0s because DeltaCp for HF is 0
+
+            X_train = trainDF[variables].values.T
+            y_train = (trainLabels[labels].values).T
+            
+            #print(y_train)
+            X_test = testDF[variables].values.T
+            y_test = (testLabels[labels].values).T
+
+
+        elif self.dataset == 'MF-deltaCp1':
+            
+            """
+            Train set: 
+                - Use delta from LF and HF @HF angles are features and predict MF directly
+                - data from LF model @ HF angles
+                - label (delta) from HF and LF model @ HF angles
+            """
+            trainDF1     = self.read_file([self.resolutions['LF']], self.angles['HF']) #Get LF data on HF angles
+            trainDF2     = self.read_file([self.resolutions['HF']], self.angles['HF']) #Get HF data on HF angles
+            trainDF = trainDF1
+            for ii in subs:
+                trainDF[ii]      = trainDF2[ii].subtract(trainDF1[ii]) #get delta for all features
+            print(trainDF)
+
+
+            trainLabels = self.read_file([self.resolutions['HF']], self.angles['HF']) # The labels are the HF data
+            
+            """
+            Test set: 
+                - data from LF model @ withheld (test) angles
+                - label from HF model @ withheld (test) angles
+            """
+            testAngles = np.sort(list(set(self.angles['LF']) - set(self.angles['HF'])))
+            testDF1     = self.read_file([self.resolutions['LF']], testAngles)
+            testDF2     = self.read_file([self.resolutions['HF']], testAngles)
+            testDF      = testDF1
+
+            for ii in subs:
+                testDF[ii]      = testDF2[ii].subtract(testDF1[ii]) #get delta for all features
+
+
+            testLabels = self.read_file([self.resolutions['HF']], testAngles) #Take deltCp: HF - LF
             testLabels = testLabels.merge(testLabels*0, how='outer')# concatenate with 0s because DeltaCp for HF is 0
 
             X_train = trainDF[variables].values.T
@@ -564,7 +632,9 @@ CpScale = {'0' :{'meanCp': [-1.2, 1.0],'rmsCp': [0, 0.36],'peakMaxCp': [-0.5, 1.
            '80':{'meanCp': [-1.0, 1.0],'rmsCp': [0, 0.35],'peakMaxCp': [-0.3, 1.5],'peakminCp': [-2.5, 0.5]},
            '90':{'meanCp': [-1.0, 1.0],'rmsCp': [0, 0.30],'peakMaxCp': [-0.3 ,1.5],'peakminCp': [-2.0, 0.5]}}
 
-datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFidelity')
+#datasplit = preprocess_features(angles, resolution, variables, labels, 'MF-deltaCp0') #learns delta and calculates LF + delta = MF. Needs learn_delta = True
+datasplit = preprocess_features(angles, resolution, variables, labels, 'MF-deltaCp1') #Learns MF directly by using delta as features. Needs learn_delta = False
+#datasplit = preprocess_features(angles, resolution, variables, labels, 'Multifidelity') #learns MF directly
 
 X_train_dev, X_test, y_train_dev, y_test = datasplit.split_dataset()
 
