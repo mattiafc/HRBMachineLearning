@@ -124,7 +124,9 @@ def compute_cost(X, labels, y_hat, area, scaling_factors, labelsIdx):
     rescaled_LF_pred = tf.add(tf.multiply(LF_pred,scaling_factors[1][labelsIdx]),scaling_factors[0][labelsIdx])    
 
     NN_RMSE = compute_RMSE(rescaled_labels, rescaled_NN_pred, area)
-    LF_RMSE = compute_RMSE(rescaled_labels, rescaled_LF_pred, area)
+    #LF_RMSE = compute_RMSE(rescaled_labels, rescaled_LF_pred, area)
+    LF_RMSE = 1
+    #LF_RMSE = tf.constant([1.0, 1.0, 1.0, 1.0], dtype = 'float64')
     
     return NN_RMSE, LF_RMSE
 
