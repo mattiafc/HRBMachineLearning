@@ -272,6 +272,46 @@ class preprocess_features:
             #print(y_train)
             X_test = testDF[variables].values.T
             y_test = (testLabels[labels].values).T
+
+        
+        elif self.dataset == 'MF-deltaCp0':
+            
+            """
+            Train set: 
+                - data from LF model @ HF angles
+                - label from HF model @ HF angles
+            """
+            trainDF1     = self.read_file([self.resolutions['LF']], self.angles['HF']) #Get LF data on HF angles
+            trainDF2     = self.read_file([self.resolutions['HF']], self.angles['HF']) #Get HF data on HF angles
+            trainDF      = trainDF1.merge(trainDF2, how='outer') #concatenate LF and HF
+
+
+            trainLabels = trainDF2.subtract(trainDF1) # Get deltaCp
+            trainLabels = trainLabels.merge(trainDF2*0, how='outer') # concatenate with 0s because DeltaCp for HF is 0
+            
+            """
+            Test set: 
+                - data from LF model @ withheld (test) angles
+                - label from HF model @ withheld (test) angles
+            """
+            testAngles = np.sort(list(set(self.angles['LF']) - set(self.angles['HF'])))
+            testDF1     = self.read_file([self.resolutions['LF']], testAngles)
+            testDF2     = self.read_file([self.resolutions['HF']], testAngles)
+            testDF      = trainDF1.merge(trainDF2, how='outer')
+
+
+            testLabels = testDF2.subtract(testDF1) #Take deltCp: HF - LF
+            testLabels = testLabels.merge(testLabels*0, how='outer')# concatenate with 0s because DeltaCp for HF is 0
+
+            X_train = trainDF[variables].values.T
+            y_train = (trainLabels[labels].values).T
+            
+            #print(y_train)
+            X_test = testDF[variables].values.T
+            y_test = (testLabels[labels].values).T
+
+
+
             
         print('=====================================================')
         print('Total number of samples is: ' + str(X_train.shape[1]+X_test.shape[1]))
@@ -339,7 +379,7 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
 
     neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
 
-    parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network(layers, learning_rate, n_epochs, batch_size)
+    parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network([layers], learning_rate, n_epochs, batch_size)
     
     plt.savefig('../MachineLearningOutput/Plots/WeightAndGrad/Label:%s,Seed:%d.png' %(labels, seed))
     plt.close()
@@ -508,8 +548,8 @@ def readDat(patches, angles, deltas, directory = '../MachineLearningOutput/probe
 angles     = {'LF': [0,10,20,30,40,50,60,70,80,90], 'HF': [0,20,40,60,80]}
 resolution = {'LF': 'Coarsest', 'HF': 'Coarse'}
 variables  = ['CfMean','TKE','U','gradP','UDotN','theta','meanCp','rmsCp','peakminCp','peakMaxCp','Area']
-labels     = ['meanCp']
-#labels     = ['meanCp','rmsCp','peakMaxCp','peakminCp']
+#labels     = ['meanCp']
+labels     = ['meanCp','rmsCp','peakMaxCp','peakminCp']
 
 patches = {'F':'front','L':'leeward','R':'rear','T':'top','W':'windward'}
 
@@ -529,27 +569,27 @@ datasplit = preprocess_features(angles, resolution, variables, labels, 'MultiFid
 X_train_dev, X_test, y_train_dev, y_test = datasplit.split_dataset()
 
     
-#with open('../MachineLearningOutput/Gridsearch' + labels + '.dat', 'a+') as out:
-    #now = datetime.now()
-    #out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
+with open('../MachineLearningOutput/Gridsearch' + ''.join(labels) + '.dat', 'a+') as out:
+    now = datetime.now()
+    out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
     
-#_ = Parallel(n_jobs= 1)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
-                            #for seed in range(435,1000))
+_ = Parallel(n_jobs= 12)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
+                            for seed in range(435,1000))
 
 #bounds = [(-2,-4),(4.51,7.49),(3.51,16.49), (3.51,8.49)]
 #res = optimize.differential_evolution(optimizer_wrap, bounds, args = (X_train_dev, X_test, y_train_dev, y_test, variables, labels),
-                                      #popsize = 24, seed = 4, workers = 12, integrality = [False, True, True, True])
+#                                      popsize = 24, seed = 4, workers = 12, integrality = [False, True, True, True])
 #print(res)
 
 test = False
 
-neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
+#neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
 #parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network([[11, 12],[12, 15, 14, 1],[12,15,14,1]], 0.00122, 701, 128)
 #parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network([[11, 12],[12, 15, 14, 1]], 0.00122, 701, 128)
 #parameters = neuralNet.fit_neural_network([[11, 15, 15, 15, 15, 14],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1]], 0.00122, 2001, 128)
-parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network([[11, 12, 15, 14, 1]], 0.00122, 11, 128)
-neuralNet.predictions_RMSE()
-plt.close()
+#parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network([[11, 12, 15, 14, 1]], 0.00122, 701, 128)
+#neuralNet.predictions_RMSE()
+#plt.close()
 
 
 #np.random.seed(seed)
