@@ -1,5 +1,5 @@
 import numpy as np
-
+import pickle
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -36,14 +36,14 @@ def initialize_parameters(layers_list):
 
     for layers in layers_list:
         
-        print(layers)    
+        #print(layers)    
         for l in range(1, len(layers)):
             
             idx = str(l+L0-1)
             
             parameters['W' + idx] = tf.Variable(np.random.randn(layers[l], layers[l-1])/np.sqrt(layers[l-1]))
             parameters['b' + idx] = tf.Variable(np.random.randn(layers[l], 1))
-            print("Layer "+idx+" with shape " +str(parameters['W' + idx].shape))
+            #print("Layer "+idx+" with shape " +str(parameters['W' + idx].shape))
             
             assert(parameters['W' + str(idx)].shape == (layers[l], layers[l - 1]))
             assert(parameters['b' + str(idx)].shape == (layers[l], 1))
@@ -96,21 +96,21 @@ def standard_NN(X, parameters, layers, L0, output = 'linear'):
 def forward_propagation(X, parameters, layers_list):
     
     L0 = 1
-    parameters, A_shared =   standard_NN(X, parameters, layers_list[0], L0, 'linear')
+    parameters, A_shared =   standard_NN(X, parameters, layers_list[0], L0, 'tanh')
     
-    #L0 += len(layers_list[0])-1
-    #parameters, Cp1 = standard_NN(A_shared, parameters, layers_list[1], L0, 'linear')
+    L0 += len(layers_list[0])-1
+    parameters, Cp1 = standard_NN(A_shared, parameters, layers_list[1], L0, 'linear')
     
-    #L0 += len(layers_list[1])-1
-    #parameters, Cp2 = standard_NN(A_shared, parameters, layers_list[2], L0, 'linear')
+    L0 += len(layers_list[1])-1
+    parameters, Cp2 = standard_NN(A_shared, parameters, layers_list[2], L0, 'linear')
     
-    #L0 += len(layers_list[2])-1
-    #parameters, Cp3 = standard_NN(A_shared, parameters, layers_list[3], L0, 'linear')
+    L0 += len(layers_list[2])-1
+    parameters, Cp3 = standard_NN(A_shared, parameters, layers_list[3], L0, 'linear')
     
-    #L0 += len(layers_list[3])-1
-    #parameters, Cp4 = standard_NN(A_shared, parameters, layers_list[4], L0, 'linear')
+    L0 += len(layers_list[3])-1
+    parameters, Cp4 = standard_NN(A_shared, parameters, layers_list[4], L0, 'linear')
     
-    #return parameters, tf.squeeze(tf.stack([Cp1, Cp2, Cp3, Cp4]))
+    return parameters, tf.squeeze(tf.stack([Cp1, Cp2, Cp3, Cp4]))
     
     return parameters, A_shared
         
@@ -306,6 +306,17 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers_list, areaIdx,
         _, y_hat_dev = forward_propagation(tf.transpose(dev_minibatch_X),  parameters, layers_list)
         NN_RMSE, LF_RMSE  = compute_cost(tf.transpose(dev_minibatch_X), tf.transpose(dev_minibatch_Y), y_hat_dev, tf.gather(dev_minibatch_X, areaIdx, axis=1), scaling_factors, labelsIdx)
         dev_cost = tf.divide(NN_RMSE,LF_RMSE)
+
+    for key, value in parameters.items():
+        if 'b' in key or 'W' in key:
+            np.savetxt('../MachineLearningOutput/ModelParameters/' + key + '.csv', value.numpy(), delimiter = ',')
+            
+    with open('../MachineLearningOutput/ModelParameters/setup', 'w+') as out:
+        out.write('Layers setup: '    +str(layers_list) + '\n')
+        out.write('Learning rate: '   +str(learning_rate) + '\n')
+        out.write('Number of epochs: '+str(num_epochs) + '\n')
+        out.write('Minibatch size: '  +str(minibatch_size) + '\n')
+        
     
     return parameters, train_cost, dev_cost, costs_plot
 

@@ -310,10 +310,10 @@ def plotQty(probes, deltas, angles, patches, quantities, cbarDict, directory = '
                     plt.colorbar(CS)
                     #plt.colorbar(CS, ticks = np.linspace(cbar[0],cbar[1],3))
                     
-                    plt.title(directory+str(int(ang))+lvl)
+                    plt.title(directory+qty+str(int(ang))+lvl)
                     plt.axis('off')
                         
-                plt.savefig(directory+str(int(ang))+lvl + '.png', bbox_inches='tight')
+                plt.savefig(directory+qty+str(int(ang))+lvl + '.png', bbox_inches='tight')
                 #plt.show(block=True)
                 plt.close('all')
                 plt.close()

@@ -1,31 +1,25 @@
 import numpy as np
+import re
+import tensorflow as tf
 
-layers_list = [[11,15,14,13,12],[12,5,5,1],[12,4,1]]
+with open("../MachineLearningOutput/ModelParameters/setup",'r') as infile:
+    for line in infile:
+        if 'Layer' in line:
+            layers = eval(line[14:])
+        if 'Learning' in line:
+            learning_rate = [float(x) for x in re.findall('[0-9].+', line)][0]
+        if 'Number' in line:
+            epochs = list(map(int,re.findall('[0-9]+', line)))[0]
+        if 'Minibatch' in line:
+            minibatch = [int(x) for x in re.findall('[0-9]+', line)][0]
+
+nLayers = sum([len(l) for l in layers])-len(layers)
 
 parameters = {}
 
-L0 = 1
-
-#for layers in layers_list:
+for l in range(1, nLayers+1):
     
-    #print(layers)    
-    #for l in range(1, len(layers)):
-        
-        #idx = str(l+L0-1)
-        
-        #parameters['W' + idx] = np.random.randn(layers[l], layers[l-1])/np.sqrt(layers[l-1])
-        #parameters['b' + idx] = np.random.randn(layers[l], 1)
-        #print("Layer "+idx+" with shape " +str(parameters['W' + idx].shape))
-        
-        #assert(parameters['W' + str(idx)].shape == (layers[l], layers[l - 1]))
-        #assert(parameters['b' + str(idx)].shape == (layers[l], 1))
-        
-    #L0 += len(layers)-1
+    parameters['W' + str(l)] = tf.Variable(np.loadtxt("../MachineLearningOutput/ModelParameters/W"+str(l)+".csv", delimiter = ','))
+    parameters['b' + str(l)] = tf.Variable(np.loadtxt("../MachineLearningOutput/ModelParameters/b"+str(l)+".csv", delimiter = ','))
 
-layers_list = [[11,15,14,13,12],[12,5,5,1],[12,4,1]]
-
-parameters = {}
-
-L0 = 1
-
-for layers in layers_list:
+return layers, learning_rate, epochs, minibatch, parameters
