@@ -307,15 +307,15 @@ def model(X_train, Y_train, X_dev, Y_dev, X_test, Y_test, layers_list, areaIdx,
         NN_RMSE, LF_RMSE  = compute_cost(tf.transpose(dev_minibatch_X), tf.transpose(dev_minibatch_Y), y_hat_dev, tf.gather(dev_minibatch_X, areaIdx, axis=1), scaling_factors, labelsIdx)
         dev_cost = tf.divide(NN_RMSE,LF_RMSE)
 
-    for key, value in parameters.items():
-        if 'b' in key or 'W' in key:
-            np.savetxt('../MachineLearningOutput/ModelParameters/' + key + '.csv', value.numpy(), delimiter = ',')
+    #for key, value in parameters.items():
+        #if 'b' in key or 'W' in key:
+            #np.savetxt('../MachineLearningOutput/ModelParameters/' + key + '.csv', value.numpy(), delimiter = ',')
             
-    with open('../MachineLearningOutput/ModelParameters/setup', 'w+') as out:
-        out.write('Layers setup: '    +str(layers_list) + '\n')
-        out.write('Learning rate: '   +str(learning_rate) + '\n')
-        out.write('Number of epochs: '+str(num_epochs) + '\n')
-        out.write('Minibatch size: '  +str(minibatch_size) + '\n')
+    #with open('../MachineLearningOutput/ModelParameters/setup', 'w+') as out:
+        #out.write('Layers setup: '    +str(layers_list) + '\n')
+        #out.write('Learning rate: '   +str(learning_rate) + '\n')
+        #out.write('Number of epochs: '+str(num_epochs) + '\n')
+        #out.write('Minibatch size: '  +str(minibatch_size) + '\n')
         
     
     return parameters, train_cost, dev_cost, costs_plot

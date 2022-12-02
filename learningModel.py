@@ -45,7 +45,6 @@ class neural_networks:
         
         self.areaIdx  = variables.index('Area')
         self.labelsIdx = [variables.index(l) for l in label]
-        print(self.labelsIdx)
         
         self.nFeatures, self.nSamples = X_train_dev_nn.shape
         
@@ -69,14 +68,14 @@ class neural_networks:
         
         self.X_train, self.X_dev, self.y_train, self.y_dev = self.train_dev_split(self.X_train_dev.T, self.y_train_dev.T)
         
-        print('=====================================================')
-        print('Train set X shape: ' + str(self.X_train.shape))
-        print('Train set y shape: ' + str(self.y_train.shape))
-        print('Dev   set x shape: ' + str(self.X_dev.shape))
-        print('Dev   set y shape: ' + str(self.y_dev.shape))
-        print('X: ' + str(type(self.X_train)) + ', y: ' + str(type(self.y_train)))
-        #print('Layer dimensions: ' + str(layers))
-        print('=====================================================\n')
+        #print('=====================================================')
+        #print('Train set X shape: ' + str(self.X_train.shape))
+        #print('Train set y shape: ' + str(self.y_train.shape))
+        #print('Dev   set x shape: ' + str(self.X_dev.shape))
+        #print('Dev   set y shape: ' + str(self.y_dev.shape))
+        #print('X: ' + str(type(self.X_train)) + ', y: ' + str(type(self.y_train)))
+        ##print('Layer dimensions: ' + str(layers))
+        #print('=====================================================\n')
         return
     
     ####################################
@@ -136,8 +135,6 @@ class neural_networks:
             
             self.parameters['W' + str(l)] = tf.Variable(np.matrix(np.loadtxt("../MachineLearningOutput/ModelParameters/W"+str(l)+".csv", delimiter = ',')))
             self.parameters['b' + str(l)] = tf.Variable(np.matrix(np.loadtxt("../MachineLearningOutput/ModelParameters/b"+str(l)+".csv", delimiter = ',')).T)
-            print(self.parameters['W' + str(l)])
-            print(self.parameters['b' + str(l)])
 
         return layers, learning_rate, epochs, minibatch
     
@@ -349,36 +346,55 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
 
     np.random.seed(seed)
     
-    #### Rms setup ###
+    n_shared_layers = np.random.randint(0, high = 5)
+    shared_layers   = (np.random.randint(15, size = int(n_shared_layers))+2).tolist()
+    shared_layers.insert(0, X_train_dev.shape[0])
     
-    #n_hidden_layers = np.random.randint(1, high = 6)
+    #Compatibility between shared and dedicated
+    shared_last_layer = (np.random.randint(15)+2)
+    shared_layers.append(shared_last_layer)
     
-    #layers      = (np.random.randint(15, size = int(n_hidden_layers))+2).tolist()
-    #layers.insert(0, X_train_dev.shape[0])
-    #layers.append(1)
+    n_dedicated_layers = np.random.randint(0, high = 4)
+    dedicated_layers   = (np.random.randint(15, size = int(n_dedicated_layers))+2).tolist()
     
-    #learning_rate = 10**np.random.uniform(-5.0,-2.0)
-    #n_epochs    = 701
-    #batch_size    = int(2**np.round(np.random.uniform(4.0, 8.1)))
+    dedicated_layers.insert(0, shared_last_layer)
+    dedicated_layers.append(1)
     
-    #n_hidden_layers = np.random.randint(1, high = 7)
+    #layers_list = [[11, 15, 15, 15, 15, 14],[14, 10, 10, 10, 1],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1]]
+    layers_list = [shared_layers, dedicated_layers, dedicated_layers, dedicated_layers, dedicated_layers]
     
-    #layers      = (np.random.randint(15, size = int(n_hidden_layers))+2).tolist()
-    #layers.insert(0, X_train_dev.shape[0])
-    #layers.append(1)
-    
-    layers = [[11, 15, 15, 15, 15, 14],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1]]
-    
-    learning_rate = 10**np.random.uniform(-5.0,-2.0)
-    n_epochs      = 3
-    batch_size    = int(2**np.round(np.random.uniform(4.0, 8.1)))
+    learning_rate = 10**np.random.uniform(-5.0,-2.5)
+    n_epochs      = 1
+    batch_size    = int(2**np.round(np.random.uniform(5.0, 8.1)))
 
     neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
 
-    parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network(layers, learning_rate, n_epochs, batch_size)
+    parameters, train_cost, dev_cost, costs_plot = neuralNet.fit_neural_network(layers_list, learning_rate, n_epochs, batch_size)
     
     #plt.savefig('../MachineLearningOutput/Plots/WeightAndGrad/Label:%s,Seed:%d.png' %(labels, seed))
     #plt.close()
+    
+    directory = '../MachineLearningOutput/ModelParameters/' + str(seed) + '/'
+    
+    try:
+        os.mkdir(directory)
+    except:
+        try:
+            os.mkdir(directory[:-1] + '(1)')
+        except:
+            with open('../MachineLearningOutput/GridsearchUpdatedLOLDontCancelMe.dat', 'a+') as out:
+                out.write('ITERATION ' + str(seed) + ' OVERWROTE THE CONTENT OF ModelParameters/' + str(seed) + '\n')
+        
+    
+    for key, value in parameters.items():
+        if 'b' in key or 'W' in key:
+            np.savetxt(directory + key + '.csv', value.numpy(), delimiter = ',')
+            
+    with open(directory +'/setup', 'w+') as out:
+        out.write('Layers setup: '    +str(layers_list) + '\n')
+        out.write('Learning rate: '   +str(learning_rate) + '\n')
+        out.write('Number of epochs: '+str(n_epochs) + '\n')
+        out.write('Minibatch size: '  +str(batch_size) + '\n')
     
     if test == False:
         X_pred, Cp_NN, Cp_HF, NN_RMSE, LF_RMSE, train_RMSE, dev_RMSE  = neuralNet.predictions_RMSE(readParams = False, test=test)
@@ -386,11 +402,11 @@ def parallelGridSearch(seed, X_train_dev, X_test, y_train_dev, y_test, variables
     elif test == True:
         X_pred, Cp_NN, Cp_HF, NN_RMSE, LF_RMSE, train_RMSE, dev_RMSE, test_RMSE  = neuralNet.predictions_RMSE(readParams = False, test=test)
 
-    print(train_RMSE[0].numpy())
+
     with open('../MachineLearningOutput/GridsearchUpdatedLOLDontCancelMe.dat', 'a+') as out:
         out.write('========================================\n')
         out.write('Seed number         : %d\n' %seed)
-        out.write('Layer dimensions    : ' + str(layers)+'\n')
+        out.write('Layer dimensions    : ' + str(layers_list)+'\n')
         out.write('Learning rate       : %f\n' %learning_rate)
         out.write('Number of epochs    : %d\n' %n_epochs)
         out.write('Minibatch size      : %d\n' %batch_size)
@@ -465,8 +481,8 @@ def saveToDat(patches, angles, resolution, variables, labels, trainDF, X_pred, C
             
             np.savetxt(fNameNN, NNPred, header = str(NNEntries))
             np.savetxt(fNameHF, HFPred, header = str(HFEntries))
-    
-#readDat(    patches, [ang],  NNres, labels, directory = '../MachineLearningOutput/NNPred/')
+
+
 def readDat(patches, angles, deltas, labels, directory = '../MachineLearningOutput/probesToDat'):
 
     roundoff = 12
@@ -576,24 +592,24 @@ with open('../MachineLearningOutput/GridsearchUpdatedLOLDontCancelMe.dat', 'a+')
     now = datetime.now()
     out.write('\n'*10+'Gridsearch performed on ' + str(now.strftime("%d %m %Y, %H:%M:%S"))+ '\n'*10)
     
-#_ = Parallel(n_jobs= 1)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
-                            #for seed in range(435,1000))
+_ = Parallel(n_jobs= 1)(delayed(parallelGridSearch)(seed, X_train_dev, X_test, y_train_dev, y_test, variables, labels)
+                            for seed in range(0,1000))
 
 #bounds = [(-2,-4),(4.51,7.49),(3.51,16.49), (3.51,8.49)]
 #res = optimize.differential_evolution(optimizer_wrap, bounds, args = (X_train_dev, X_test, y_train_dev, y_test, variables, labels),
                                       #popsize = 24, seed = 4, workers = 12, integrality = [False, True, True, True])
 
-neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
-parameters = neuralNet.fit_neural_network([[11, 15, 15, 15, 15, 14],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1]], 0.008193, 701, 64)
-plt.close()
+#neuralNet = neural_networks(X_train_dev, X_test, y_train_dev, y_test, variables, labels)
+#parameters = neuralNet.fit_neural_network([[11, 15, 15, 15, 15, 14],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1],[14, 10, 8, 11, 1]], 0.0008193, 701, 64)
+#plt.close()
 
 
 
 #X_pred, Cp_NN, Cp_HF, NN_RMSE, LF_RMSE, train_RMSE, dev_RMSE = neuralNet.predictions_RMSE(readParams = True, test = False)
 
-trainDF = datasplit.read_file([resolution['LF']], angles['HF'])
+#trainDF = datasplit.read_file([resolution['LF']], angles['HF'])
 
-saveToDat(patches, angles['HF'], resolution, variables, labels, trainDF, X_pred, Cp_NN, Cp_HF)
+#saveToDat(patches, angles['HF'], resolution, variables, labels, trainDF, X_pred, Cp_NN, Cp_HF)
 
 ##Neural nets has been fitted, used to predict, and the output has been saved into a .dat 
 
@@ -604,36 +620,36 @@ saveToDat(patches, angles['HF'], resolution, variables, labels, trainDF, X_pred,
 ####### HERE YOU CAN POLOT PREDICTIONS AND RMSE ######
 ######################################################
     
-NNres = ['NeuralNet']
-HFres = [resolution['HF']]
+#NNres = ['NeuralNet']
+#HFres = [resolution['HF']]
 
-for ang in angles['HF']:
+#for ang in angles['HF']:
 
-    NNresults = readDat(patches, [ang], NNres, labels, directory = '../MachineLearningOutput/NNPred/')
-    HRBProbes.plotQty(NNresults, NNres, [ang], patches, labels, CpScale[str(ang)], directory = '../MachineLearningOutput/Plots/', resCompare = False)
+    #NNresults = readDat(patches, [ang], NNres, labels, directory = '../MachineLearningOutput/NNPred/')
+    #HRBProbes.plotQty(NNresults, NNres, [ang], patches, labels, CpScale[str(ang)], directory = '../MachineLearningOutput/Plots/', resCompare = False)
 
-    HFresults = readDat(patches, [ang], HFres, labels, directory = '../MachineLearningOutput/HFPred/')
-    HRBProbes.plotQty(HFresults, HFres, [ang], patches, labels, CpScale[str(ang)], directory = '../MachineLearningOutput/Plots/', resCompare = False)
+    #HFresults = readDat(patches, [ang], HFres, labels, directory = '../MachineLearningOutput/HFPred/')
+    #HRBProbes.plotQty(HFresults, HFres, [ang], patches, labels, CpScale[str(ang)], directory = '../MachineLearningOutput/Plots/', resCompare = False)
 
-for ang in angles['HF']:
+#for ang in angles['HF']:
 
-    NNresults = readDat(patches, [ang], NNres, labels, directory = '../MachineLearningOutput/NNPred/')
-    HFresults = readDat(patches, [ang], HFres, labels, directory = '../MachineLearningOutput/HFPred/')
+    #NNresults = readDat(patches, [ang], NNres, labels, directory = '../MachineLearningOutput/NNPred/')
+    #HFresults = readDat(patches, [ang], HFres, labels, directory = '../MachineLearningOutput/HFPred/')
             
-    for l in labels:
+    #for l in labels:
         
-        for pl in patches:
+        #for pl in patches:
                     
-            dictKeyNN = 'NeuralNet' + str(int(ang)) + pl
-            dictKeyHF = resolution['HF'] + str(int(ang)) + pl
+            #dictKeyNN = 'NeuralNet' + str(int(ang)) + pl
+            #dictKeyHF = resolution['HF'] + str(int(ang)) + pl
             
-            if max(abs(NNresults[dictKeyNN]['Area'] - HFresults[dictKeyHF]['Area'])) > 1e-10:
-                raise Exception('You sughed the area baby!!')
+            #if max(abs(NNresults[dictKeyNN]['Area'] - HFresults[dictKeyHF]['Area'])) > 1e-10:
+                #raise Exception('You sughed the area baby!!')
             
-            RMSEcomp = np.sqrt(np.power(NNresults[dictKeyNN][l] - HFresults[dictKeyHF][l],2)*NNresults[dictKeyNN]['Area'])
-            NNresults[dictKeyNN][l+'RMSE'] = RMSEcomp
+            #RMSEcomp = np.sqrt(np.power(NNresults[dictKeyNN][l] - HFresults[dictKeyHF][l],2)*NNresults[dictKeyNN]['Area'])
+            #NNresults[dictKeyNN][l+'RMSE'] = RMSEcomp
             
-    HRBProbes.plotQty(NNresults, NNres, [ang], patches, [l+'RMSE' for l in labels], CpScale[str(ang)], directory = '../MachineLearningOutput/Plots/', resCompare = False)
+    #HRBProbes.plotQty(NNresults, NNres, [ang], patches, [l+'RMSE' for l in labels], CpScale[str(ang)], directory = '../MachineLearningOutput/Plots/', resCompare = False)
             
 
 
