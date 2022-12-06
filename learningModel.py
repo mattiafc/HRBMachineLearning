@@ -615,9 +615,9 @@ saveToDat(patches, angles['HF'], resolution, variables, labels, trainDF, X_pred,
 
 
 
-#####################################################
-###### HERE YOU CAN POLOT PREDICTIONS AND RMSE ######
-#####################################################
+####################################################
+###### HERE YOU CAN PLOT PREDICTIONS AND RMSE ######
+####################################################
     
 NNres = ['NeuralNet']
 HFres = [resolution['HF']]
